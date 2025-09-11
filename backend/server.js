@@ -4,7 +4,9 @@ const Web3 = require('web3');
 const path = require('path');
 const app = express();
 app.use(express.json());
-require('dotenv').config(); 
+require('dotenv').config();
+const cors = require('cors');
+app.use(cors());
 
 // Thay bằng Infura key (tạo miễn phí tại https://app.infura.io/register)
 const web3 = new Web3('https://sepolia.infura.io/v3/163d705cc5c14d53b5abc349908cb2c9');
@@ -141,11 +143,12 @@ const abi = [
 		"type": "function"
 	}
 ];
-const contract = new web3.eth.Contract(abi, contractAddress);
-
 const contractAddress = process.env.CONTRACT_ADDRESS;
 const account = process.env.ACCOUNT;
 const privateKey = process.env.PRIVATE_KEY;
+const contract = new web3.eth.Contract(abi, contractAddress);
+
+
 
 
 
@@ -203,5 +206,5 @@ app.post('/evaluate', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-app.listen(3000, () => console.log('Backend running on port 3000'));
+const PORT = process.env.PORT || 3001;
+app.listen(3001, () => console.log('Backend running on port 3001'));
