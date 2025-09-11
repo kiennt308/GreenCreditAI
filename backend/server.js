@@ -208,7 +208,7 @@ app.post('/login', async (req, res) => {
 
 
 app.post('/evaluate', authenticateToken, async (req, res) => {
-    const { revenue, emissions } = req.body;
+    const { revenue, emissions, projectDescription, loanAmount } = req.body;
 
     // Đường dẫn tuyệt đối tới ai_model.py
     const pythonPath = path.join(__dirname, '../ai/ai_model.py');
@@ -233,9 +233,19 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
         });
     }
 
+    // Determine approval status based on ESG score
+    const isApproved = esgScore >= 70;
+    const creditAmount = isApproved ? (loanAmount || 1000) : 0;
+    const interestRate = calculateInterestRate(esgScore);
+
     // Lưu vào Blockchain
     try {
-        const tx = contract.methods.addRecord(Math.round(esgScore), 1000);
+        const tx = contract.methods.addRecord(
+            Math.round(esgScore), 
+            creditAmount,
+            projectDescription || "Sustainable irrigation project",
+            loanAmount || 500000000 // 500M VND default
+        );
         const gas = await tx.estimateGas({ from: account });
 
         // Lấy gasPrice hiện tại và tăng 20%
@@ -256,12 +266,24 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
         const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
         const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
-        res.json({ esgScore, txHash: receipt.transactionHash });
+        const response = {
+            esgScore: Math.round(esgScore),
+            txHash: receipt.transactionHash,
+            approved: isApproved,
+            creditAmount: creditAmount,
+            interestRate: interestRate,
+            loanAmount: loanAmount || 500000000,
+            projectDescription: projectDescription || "Sustainable irrigation project"
+        };
+
+        res.json(response);
         
         // Emit real-time notification
         io.emit('transactionUpdate', {
             esgScore: Math.round(esgScore),
-            txHash: receipt.transactionHash
+            txHash: receipt.transactionHash,
+            approved: isApproved,
+            creditAmount: creditAmount
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -310,12 +332,141 @@ app.get('/records/:id', authenticateToken, async (req, res) => {
 
 app.post('/redeem-token', authenticateToken, async (req, res) => {
     try {
-        // Mock token redemption - in a real app, you'd check actual token balance
-        const mockDiscount = "10% interest reduction";
-        res.json({ 
-            success: true, 
-            discount: mockDiscount,
-            message: "Token redeemed successfully!"
+        const { amount } = req.body;
+        
+        if (!amount || amount <= 0) {
+            return res.status(400).json({ error: 'Valid amount is required' });
+        }
+
+        // Check user's token balance
+        const userAddress = req.user.walletAddress || account; // Fallback to contract account
+        const balance = await contract.methods.balanceOf(userAddress).call();
+        
+        if (parseInt(balance) < parseInt(amount)) {
+            return res.status(400).json({ error: 'Insufficient token balance' });
+        }
+
+        // Redeem tokens (burn them)
+        const tx = contract.methods.redeemTokens(amount);
+        const gas = await tx.estimateGas({ from: account });
+        const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+        const nonce = await web3.eth.getTransactionCount(account, 'pending');
+
+        const txData = {
+            from: account,
+            to: contractAddress,
+            data: tx.encodeABI(),
+            gas,
+            gasPrice,
+            nonce
+        };
+
+        const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
+        // Simulate bank API call for interest discount
+        const discountResponse = await simulateBankAPI(amount);
+        
+        // Emit real-time notification
+        io.emit('tokenRedeemed', {
+            user: req.user.username,
+            amount: amount,
+            discount: discountResponse.discount,
+            txHash: receipt.transactionHash
+        });
+
+        res.json({
+            success: true,
+            discount: discountResponse.discount,
+            message: "Tokens redeemed successfully!",
+            txHash: receipt.transactionHash,
+            newBalance: parseInt(balance) - parseInt(amount)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Calculate interest rate based on ESG score
+function calculateInterestRate(esgScore) {
+    if (esgScore >= 90) return 6.5; // Excellent ESG
+    if (esgScore >= 80) return 7.0; // Good ESG
+    if (esgScore >= 70) return 7.5; // Fair ESG
+    if (esgScore >= 60) return 8.0; // Below average
+    return 8.5; // Poor ESG
+}
+
+// Simulate bank API call for interest discount
+async function simulateBankAPI(tokenAmount) {
+    try {
+        // Mock bank API response based on token amount
+        const amount = parseInt(tokenAmount);
+        let discount = "2% interest reduction";
+        
+        if (amount >= 1000) {
+            discount = "15% interest reduction on 500M VND loan";
+        } else if (amount >= 500) {
+            discount = "10% interest reduction on 500M VND loan";
+        } else if (amount >= 100) {
+            discount = "5% interest reduction on 500M VND loan";
+        }
+        
+        return {
+            discount: discount,
+            loanAmount: "500,000,000 VND",
+            interestRate: "8.5%",
+            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+        };
+    } catch (error) {
+        return {
+            discount: "2% interest reduction",
+            loanAmount: "500,000,000 VND",
+            interestRate: "8.5%",
+            validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        };
+    }
+}
+
+app.get('/progress-tracker', authenticateToken, async (req, res) => {
+    try {
+        const recordCount = await contract.methods.recordCount().call();
+        const records = [];
+        let totalESGScore = 0;
+        let totalEmissions = 0;
+        let totalRevenue = 0;
+
+        for (let i = 0; i < recordCount; i++) {
+            const record = await contract.methods.getRecord(i).call();
+            const recordData = {
+                id: i,
+                esgScore: parseInt(record.esgScore),
+                creditAmount: parseInt(record.creditAmount),
+                timestamp: parseInt(record.timestamp),
+                projectDescription: record.projectDescription,
+                loanAmount: parseInt(record.loanAmount),
+                approved: record.approved
+            };
+            records.push(recordData);
+            totalESGScore += parseInt(record.esgScore);
+        }
+
+        // Sort by timestamp for trend analysis
+        records.sort((a, b) => a.timestamp - b.timestamp);
+
+        // Calculate trends
+        const trends = calculateTrends(records);
+        const averageESGScore = recordCount > 0 ? totalESGScore / recordCount : 0;
+
+        res.json({
+            totalRecords: parseInt(recordCount),
+            averageESGScore: Math.round(averageESGScore * 100) / 100,
+            records: records,
+            trends: trends,
+            progressMetrics: {
+                esgImprovement: trends.esgImprovement,
+                carbonReduction: trends.carbonReduction,
+                sustainabilityScore: trends.sustainabilityScore
+            }
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -324,26 +475,272 @@ app.post('/redeem-token', authenticateToken, async (req, res) => {
 
 app.get('/esg-analytics', authenticateToken, async (req, res) => {
     try {
+        const { sector, startDate, endDate, minScore, maxScore } = req.query;
         const recordCount = await contract.methods.recordCount().call();
         const records = [];
         let totalESGScore = 0;
+        let totalCreditAmount = 0;
 
         for (let i = 0; i < recordCount; i++) {
             const record = await contract.methods.getRecord(i).call();
-            records.push({
+            const recordData = {
+                id: i,
                 esgScore: parseInt(record.esgScore),
-                creditAmount: parseInt(record.creditAmount)
-            });
-            totalESGScore += parseInt(record.esgScore);
+                creditAmount: parseInt(record.creditAmount),
+                timestamp: parseInt(record.timestamp),
+                projectDescription: record.projectDescription,
+                loanAmount: parseInt(record.loanAmount),
+                approved: record.approved,
+                sector: determineSector(record.projectDescription)
+            };
+
+            // Apply filters
+            let includeRecord = true;
+
+            if (sector && recordData.sector !== sector) includeRecord = false;
+            if (minScore && recordData.esgScore < parseInt(minScore)) includeRecord = false;
+            if (maxScore && recordData.esgScore > parseInt(maxScore)) includeRecord = false;
+            if (startDate && recordData.timestamp < new Date(startDate).getTime() / 1000) includeRecord = false;
+            if (endDate && recordData.timestamp > new Date(endDate).getTime() / 1000) includeRecord = false;
+
+            if (includeRecord) {
+                records.push(recordData);
+                totalESGScore += recordData.esgScore;
+                totalCreditAmount += recordData.creditAmount;
+            }
         }
 
-        const averageESGScore = recordCount > 0 ? totalESGScore / recordCount : 0;
+        const averageESGScore = records.length > 0 ? totalESGScore / records.length : 0;
+        const averageCreditAmount = records.length > 0 ? totalCreditAmount / records.length : 0;
+
+        // Calculate sector-based analytics
+        const sectorAnalytics = calculateSectorAnalytics(records);
+        const timeSeriesData = calculateTimeSeriesData(records);
 
         res.json({
-            totalRecords: parseInt(recordCount),
+            totalRecords: records.length,
             averageESGScore: Math.round(averageESGScore * 100) / 100,
-            records: records
+            averageCreditAmount: Math.round(averageCreditAmount * 100) / 100,
+            records: records,
+            sectorAnalytics: sectorAnalytics,
+            timeSeriesData: timeSeriesData,
+            filters: {
+                sector: sector || 'all',
+                startDate: startDate || null,
+                endDate: endDate || null,
+                minScore: minScore || null,
+                maxScore: maxScore || null
+            }
         });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Determine sector based on project description
+function determineSector(description) {
+    const desc = description.toLowerCase();
+    if (desc.includes('agriculture') || desc.includes('farming') || desc.includes('irrigation')) return 'Agriculture';
+    if (desc.includes('energy') || desc.includes('solar') || desc.includes('wind')) return 'Energy';
+    if (desc.includes('manufacturing') || desc.includes('production')) return 'Manufacturing';
+    if (desc.includes('transport') || desc.includes('logistics')) return 'Transportation';
+    if (desc.includes('construction') || desc.includes('building')) return 'Construction';
+    return 'Other';
+}
+
+// Calculate sector-based analytics
+function calculateSectorAnalytics(records) {
+    const sectors = {};
+    
+    records.forEach(record => {
+        if (!sectors[record.sector]) {
+            sectors[record.sector] = {
+                count: 0,
+                totalESG: 0,
+                totalCredit: 0,
+                records: []
+            };
+        }
+        
+        sectors[record.sector].count++;
+        sectors[record.sector].totalESG += record.esgScore;
+        sectors[record.sector].totalCredit += record.creditAmount;
+        sectors[record.sector].records.push(record);
+    });
+
+    // Calculate averages
+    Object.keys(sectors).forEach(sector => {
+        sectors[sector].averageESG = Math.round((sectors[sector].totalESG / sectors[sector].count) * 100) / 100;
+        sectors[sector].averageCredit = Math.round((sectors[sector].totalCredit / sectors[sector].count) * 100) / 100;
+    });
+
+    return sectors;
+}
+
+// Calculate time series data for charts
+function calculateTimeSeriesData(records) {
+    const monthlyData = {};
+    
+    records.forEach(record => {
+        const date = new Date(record.timestamp * 1000);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        
+        if (!monthlyData[monthKey]) {
+            monthlyData[monthKey] = {
+                count: 0,
+                totalESG: 0,
+                totalCredit: 0
+            };
+        }
+        
+        monthlyData[monthKey].count++;
+        monthlyData[monthKey].totalESG += record.esgScore;
+        monthlyData[monthKey].totalCredit += record.creditAmount;
+    });
+
+    // Convert to array and calculate averages
+    return Object.keys(monthlyData).map(month => ({
+        month: month,
+        count: monthlyData[month].count,
+        averageESG: Math.round((monthlyData[month].totalESG / monthlyData[month].count) * 100) / 100,
+        averageCredit: Math.round((monthlyData[month].totalCredit / monthlyData[month].count) * 100) / 100
+    })).sort((a, b) => a.month.localeCompare(b.month));
+}
+
+// Calculate sustainability trends
+function calculateTrends(records) {
+    if (records.length < 2) {
+        return {
+            esgImprovement: 0,
+            carbonReduction: 0,
+            sustainabilityScore: 0,
+            trendDirection: 'stable'
+        };
+    }
+
+    // Calculate ESG improvement trend
+    const firstESG = records[0].esgScore;
+    const lastESG = records[records.length - 1].esgScore;
+    const esgImprovement = lastESG - firstESG;
+
+    // Calculate carbon reduction estimate (mock calculation)
+    const carbonReduction = Math.max(0, esgImprovement * 0.1); // 0.1 tons per ESG point improvement
+
+    // Calculate overall sustainability score
+    const sustainabilityScore = Math.min(100, Math.max(0, lastESG + (esgImprovement * 0.5)));
+
+    // Determine trend direction
+    let trendDirection = 'stable';
+    if (esgImprovement > 5) trendDirection = 'improving';
+    else if (esgImprovement < -5) trendDirection = 'declining';
+
+    return {
+        esgImprovement: Math.round(esgImprovement * 100) / 100,
+        carbonReduction: Math.round(carbonReduction * 100) / 100,
+        sustainabilityScore: Math.round(sustainabilityScore * 100) / 100,
+        trendDirection: trendDirection,
+        records: records.map(r => ({
+            x: new Date(r.timestamp * 1000).toISOString().split('T')[0],
+            y: r.esgScore
+        }))
+    };
+}
+
+app.get('/user-stats', authenticateToken, async (req, res) => {
+    try {
+        const userAddress = req.user.walletAddress || account;
+        const stats = await contract.methods.getUserStats(userAddress).call();
+        
+        res.json({
+            totalRecords: parseInt(stats.totalRecords),
+            totalTokens: parseInt(stats.totalTokens),
+            redeemedAmount: parseInt(stats.redeemedAmount),
+            lastRedemption: parseInt(stats.lastRedemption)
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/approve-credit', authenticateToken, async (req, res) => {
+    try {
+        const { recordId, finalLoanAmount, adminNotes } = req.body;
+        
+        // Check if user is admin (in production, use proper role-based access)
+        const isAdmin = req.user.email === 'admin@greencredit.ai' || req.user.username === 'admin';
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        if (!recordId) {
+            return res.status(400).json({ error: 'Record ID is required' });
+        }
+
+        // Approve credit on blockchain
+        const tx = contract.methods.approveCredit(recordId);
+        const gas = await tx.estimateGas({ from: account });
+        const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+        const nonce = await web3.eth.getTransactionCount(account, 'pending');
+
+        const txData = {
+            from: account,
+            to: contractAddress,
+            data: tx.encodeABI(),
+            gas,
+            gasPrice,
+            nonce
+        };
+
+        const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
+        // Emit real-time notification
+        io.emit('creditApproved', {
+            recordId: recordId,
+            finalLoanAmount: finalLoanAmount || 500000000,
+            adminNotes: adminNotes || 'Approved by admin',
+            txHash: receipt.transactionHash,
+            approvedBy: req.user.username
+        });
+
+        res.json({
+            success: true,
+            recordId: recordId,
+            finalLoanAmount: finalLoanAmount || 500000000,
+            txHash: receipt.transactionHash,
+            message: 'Credit approved successfully'
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/pending-approvals', authenticateToken, async (req, res) => {
+    try {
+        const isAdmin = req.user.email === 'admin@greencredit.ai' || req.user.username === 'admin';
+        if (!isAdmin) {
+            return res.status(403).json({ error: 'Admin access required' });
+        }
+
+        const recordCount = await contract.methods.recordCount().call();
+        const pendingRecords = [];
+
+        for (let i = 0; i < recordCount; i++) {
+            const record = await contract.methods.getRecord(i).call();
+            if (!record.approved) {
+                pendingRecords.push({
+                    id: i,
+                    user: record.user,
+                    esgScore: record.esgScore,
+                    creditAmount: record.creditAmount,
+                    loanAmount: record.loanAmount,
+                    projectDescription: record.projectDescription,
+                    timestamp: record.timestamp
+                });
+            }
+        }
+
+        res.json(pendingRecords);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

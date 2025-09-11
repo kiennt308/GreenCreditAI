@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
+import TokenRedemption from './TokenRedemption';
+import AdminPanel from './AdminPanel';
+import ProgressTracker from './ProgressTracker';
+import EnhancedAnalytics from './EnhancedAnalytics';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -26,10 +30,14 @@ const Dashboard = ({ user, token }) => {
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [activeTab, setActiveTab] = useState('overview');
+    const [isAdmin, setIsAdmin] = useState(false);
 
     useEffect(() => {
         fetchUserRecords();
-    }, []);
+        // Check if user is admin
+        setIsAdmin(user.email === 'admin@greencredit.ai' || user.username === 'admin');
+    }, [user]);
 
     const fetchUserRecords = async () => {
         try {
@@ -106,13 +114,66 @@ const Dashboard = ({ user, token }) => {
                 </div>
             </div>
 
+            {/* Navigation Tabs */}
+            <div className="row mb-4">
+                <div className="col-12">
+                    <ul className="nav nav-tabs">
+                        <li className="nav-item">
+                            <button 
+                                className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('overview')}
+                            >
+                                📊 Overview
+                            </button>
+                        </li>
+                        <li className="nav-item">
+                            <button 
+                                className={`nav-link ${activeTab === 'tokens' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('tokens')}
+                            >
+                                🪙 Token Redemption
+                            </button>
+                        </li>
+                        <li className="nav-item">
+                            <button 
+                                className={`nav-link ${activeTab === 'progress' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('progress')}
+                            >
+                                🌱 Progress Tracker
+                            </button>
+                        </li>
+                        <li className="nav-item">
+                            <button 
+                                className={`nav-link ${activeTab === 'analytics' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('analytics')}
+                            >
+                                📊 Analytics
+                            </button>
+                        </li>
+                        {isAdmin && (
+                            <li className="nav-item">
+                                <button 
+                                    className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('admin')}
+                                >
+                                    🔐 Admin Panel
+                                </button>
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            </div>
+
             {error && (
                 <div className="alert alert-danger" role="alert">
                     {error}
                 </div>
             )}
 
-            <div className="row mt-4">
+            {/* Tab Content */}
+            {activeTab === 'overview' && (
+                <>
+                    <div className="row mt-4">
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
@@ -168,6 +229,24 @@ const Dashboard = ({ user, token }) => {
                     </div>
                 </div>
             </div>
+                </>
+            )}
+
+            {activeTab === 'tokens' && (
+                <TokenRedemption user={user} token={token} />
+            )}
+
+            {activeTab === 'progress' && (
+                <ProgressTracker user={user} token={token} />
+            )}
+
+            {activeTab === 'analytics' && (
+                <EnhancedAnalytics user={user} token={token} />
+            )}
+
+            {activeTab === 'admin' && isAdmin && (
+                <AdminPanel user={user} token={token} />
+            )}
         </div>
     );
 };

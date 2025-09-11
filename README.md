@@ -389,11 +389,62 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - Do Dang Trinh  
 - Nguyen Kieu Bao Khanh
 
+## 🌾 Vietnamese Agricultural Company Scenario
+
+### Real-World Use Case: Company A Loan Application
+
+**Scenario**: A Vietnamese agricultural company (Company A) seeks a 500 million VND loan from HDBank for sustainable irrigation, involving ESG evaluation, transparent storage with token rewards, and ongoing monitoring.
+
+#### Complete Flow:
+
+1. **Data Submission**
+   - Company A registers on the platform
+   - Submits loan application with project details
+   - Provides financial data (revenue: 2B VND, emissions: 150 tons CO2)
+   - Describes sustainable irrigation project
+
+2. **AI Analysis**
+   - RandomForest model analyzes ESG factors
+   - Calculates ESG score based on revenue and emissions
+   - Determines creditworthiness and interest rate
+
+3. **Blockchain Storage & Reward**
+   - ESG data stored on Ethereum blockchain
+   - GreenCredit tokens minted based on ESG score
+   - Transparent, immutable record of evaluation
+
+4. **Results & Notifications**
+   - Real-time WebSocket notifications
+   - Approval status and interest rate display
+   - Token balance and redemption options
+
+5. **Dashboard Tracking**
+   - Progress tracking with trend analysis
+   - Enhanced analytics with filtering
+   - Token redemption for bank benefits
+   - Admin approval workflow
+
+#### Test the Scenario:
+
+```bash
+# Run the complete scenario test
+node test-scenario.js
+```
+
+Expected output:
+- Company registration and authentication
+- 500M VND loan application submission
+- ESG score calculation and approval
+- Token earning and redemption
+- Progress tracking and analytics
+- Real-time notifications
+
 ## 🔗 Links
 
 - [Live Demo](http://localhost:3000)
 - [API Documentation](http://localhost:3001/api-docs)
 - [Smart Contract](https://sepolia.etherscan.io/address/0x102a95bf109E80D130858B19a5419e65f858583d)
+- [Deployment Guide](DEPLOYMENT.md)
 
 ## 📞 Support
 

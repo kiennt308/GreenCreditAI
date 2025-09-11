@@ -6,6 +6,8 @@ import io from 'socket.io-client';
 const EvaluationForm = ({ user, token }) => {
     const [revenue, setRevenue] = useState('');
     const [emissions, setEmissions] = useState('');
+    const [projectDescription, setProjectDescription] = useState('');
+    const [loanAmount, setLoanAmount] = useState('500000000');
     const [autoFetch, setAutoFetch] = useState(false);
     const [result, setResult] = useState(null);
     const [error, setError] = useState(null);
@@ -18,7 +20,12 @@ const EvaluationForm = ({ user, token }) => {
         setSocket(newSocket);
 
         newSocket.on('transactionUpdate', (data) => {
-            toast.success(`Transaction confirmed! ESG Score: ${data.esgScore}, TX Hash: ${data.txHash}`);
+            const status = data.approved ? 'APPROVED' : 'PENDING REVIEW';
+            toast.success(`Transaction confirmed! ESG Score: ${data.esgScore}, Status: ${status}`);
+        });
+
+        newSocket.on('creditApproved', (data) => {
+            toast.success(`Credit approved! Loan Amount: ${data.finalLoanAmount.toLocaleString()} VND`);
         });
 
         return () => newSocket.close();
@@ -60,7 +67,9 @@ const EvaluationForm = ({ user, token }) => {
 
             const res = await axios.post('http://localhost:3001/evaluate', {
                 revenue: parseFloat(revenue),
-                emissions: parseFloat(finalEmissions)
+                emissions: parseFloat(finalEmissions),
+                projectDescription: projectDescription,
+                loanAmount: parseInt(loanAmount)
             }, {
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -115,6 +124,30 @@ const EvaluationForm = ({ user, token }) => {
                                         min="0"
                                     />
                                 </div>
+                                <div className="mb-3">
+                                    <label htmlFor="projectDescription" className="form-label">Project Description</label>
+                                    <textarea
+                                        className="form-control"
+                                        id="projectDescription"
+                                        value={projectDescription}
+                                        onChange={(e) => setProjectDescription(e.target.value)}
+                                        rows="3"
+                                        placeholder="Describe your sustainable project (e.g., irrigation system, renewable energy, etc.)"
+                                    />
+                                </div>
+                                <div className="mb-3">
+                                    <label htmlFor="loanAmount" className="form-label">Loan Amount (VND)</label>
+                                    <input
+                                        type="number"
+                                        className="form-control"
+                                        id="loanAmount"
+                                        value={loanAmount}
+                                        onChange={(e) => setLoanAmount(e.target.value)}
+                                        min="1000000"
+                                        step="1000000"
+                                    />
+                                    <div className="form-text">Minimum: 1,000,000 VND</div>
+                                </div>
                                 <div className="mb-3 form-check">
                                     <input
                                         type="checkbox"
@@ -143,9 +176,25 @@ const EvaluationForm = ({ user, token }) => {
                             
                             {result && (
                                 <div className="mt-4">
-                                    <div className="alert alert-success" role="alert">
+                                    <div className={`alert ${result.approved ? 'alert-success' : 'alert-warning'}`} role="alert">
                                         <h5>Evaluation Results</h5>
-                                        <p><strong>ESG Score:</strong> {result.esgScore}</p>
+                                        <div className="row">
+                                            <div className="col-md-6">
+                                                <p><strong>ESG Score:</strong> {result.esgScore}</p>
+                                                <p><strong>Status:</strong> 
+                                                    <span className={`badge ${result.approved ? 'bg-success' : 'bg-warning'} ms-2`}>
+                                                        {result.approved ? 'APPROVED' : 'PENDING REVIEW'}
+                                                    </span>
+                                                </p>
+                                                <p><strong>Interest Rate:</strong> {result.interestRate}%</p>
+                                            </div>
+                                            <div className="col-md-6">
+                                                <p><strong>Loan Amount:</strong> {result.loanAmount.toLocaleString()} VND</p>
+                                                <p><strong>Credit Amount:</strong> {result.creditAmount.toLocaleString()} VND</p>
+                                                <p><strong>Project:</strong> {result.projectDescription}</p>
+                                            </div>
+                                        </div>
+                                        <hr />
                                         <p><strong>Transaction Hash:</strong> 
                                             <a 
                                                 href={`https://sepolia.etherscan.io/tx/${result.txHash}`}
@@ -156,6 +205,11 @@ const EvaluationForm = ({ user, token }) => {
                                                 {result.txHash}
                                             </a>
                                         </p>
+                                        {!result.approved && (
+                                            <div className="alert alert-info mt-2">
+                                                <small>Your application is pending admin review. You will be notified when a decision is made.</small>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
