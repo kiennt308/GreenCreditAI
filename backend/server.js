@@ -19,7 +19,10 @@ const io = socketIo(server, {
 app.use(express.json());
 require('dotenv').config();
 const cors = require('cors');
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+    credentials: true
+}));
 
 // Rate limiting
 const limiter = rateLimit({
@@ -46,6 +49,16 @@ const abi = [
 				"internalType": "uint256",
 				"name": "_creditAmount",
 				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "_projectDescription",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "_loanAmount",
+				"type": "uint256"
 			}
 		],
 		"name": "addRecord",
@@ -54,16 +67,253 @@ const abi = [
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "approve",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_recordId",
+				"type": "uint256"
+			}
+		],
+		"name": "approveCredit",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"stateMutability": "nonpayable",
+		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "allowance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "ERC20InsufficientAllowance",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "balance",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "needed",
+				"type": "uint256"
+			}
+		],
+		"name": "ERC20InsufficientBalance",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "approver",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidApprover",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "receiver",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidReceiver",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "sender",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidSender",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			}
+		],
+		"name": "ERC20InvalidSpender",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "initialMint",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			}
+		],
+		"name": "OwnableInvalidOwner",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "OwnableUnauthorizedAccount",
+		"type": "error"
+	},
+	{
 		"anonymous": false,
 		"inputs": [
 			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			},
+			{
 				"indexed": false,
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "Approval",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "uint256",
+				"name": "recordId",
+				"type": "uint256"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "loanAmount",
+				"type": "uint256"
+			}
+		],
+		"name": "CreditApproved",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
 				"internalType": "uint256",
 				"name": "id",
 				"type": "uint256"
 			},
 			{
-				"indexed": false,
+				"indexed": true,
 				"internalType": "address",
 				"name": "user",
 				"type": "address"
@@ -73,10 +323,208 @@ const abi = [
 				"internalType": "uint256",
 				"name": "esgScore",
 				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "creditAmount",
+				"type": "uint256"
 			}
 		],
 		"name": "RecordAdded",
 		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_amount",
+				"type": "uint256"
+			}
+		],
+		"name": "redeemTokens",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			},
+			{
+				"indexed": false,
+				"internalType": "string",
+				"name": "discount",
+				"type": "string"
+			}
+		],
+		"name": "TokensRedeemed",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "transfer",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"indexed": false,
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "Transfer",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "from",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "value",
+				"type": "uint256"
+			}
+		],
+		"name": "transferFrom",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			},
+			{
+				"internalType": "address",
+				"name": "spender",
+				"type": "address"
+			}
+		],
+		"name": "allowance",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "balanceOf",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "decimals",
+		"outputs": [
+			{
+				"internalType": "uint8",
+				"name": "",
+				"type": "uint8"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
 	},
 	{
 		"inputs": [
@@ -109,11 +557,105 @@ const abi = [
 						"internalType": "bool",
 						"name": "approved",
 						"type": "bool"
+					},
+					{
+						"internalType": "uint256",
+						"name": "timestamp",
+						"type": "uint256"
+					},
+					{
+						"internalType": "string",
+						"name": "projectDescription",
+						"type": "string"
+					},
+					{
+						"internalType": "uint256",
+						"name": "loanAmount",
+						"type": "uint256"
 					}
 				],
 				"internalType": "struct GreenCredit.CreditRecord",
 				"name": "",
 				"type": "tuple"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_user",
+				"type": "address"
+			}
+		],
+		"name": "getUserStats",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "totalRecords",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalTokens",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "redeemedAmount",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "lastRedemption",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "lastRedemptionTime",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "name",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -161,6 +703,79 @@ const abi = [
 				"internalType": "bool",
 				"name": "approved",
 				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "timestamp",
+				"type": "uint256"
+			},
+			{
+				"internalType": "string",
+				"name": "projectDescription",
+				"type": "string"
+			},
+			{
+				"internalType": "uint256",
+				"name": "loanAmount",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "redeemedTokens",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "symbol",
+		"outputs": [
+			{
+				"internalType": "string",
+				"name": "",
+				"type": "string"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalSupply",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "totalTokensMinted",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -293,7 +908,10 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
 // Additional API endpoints
 app.get('/user-records', authenticateToken, async (req, res) => {
     try {
+        console.log('Fetching user records for user:', req.user.username);
         const recordCount = await contract.methods.recordCount().call();
+        console.log('Total records in contract:', recordCount);
+        
         const records = [];
 
         for (let i = 0; i < recordCount; i++) {
@@ -301,14 +919,19 @@ app.get('/user-records', authenticateToken, async (req, res) => {
             records.push({
                 id: i,
                 user: record.user,
-                esgScore: record.esgScore,
-                creditAmount: record.creditAmount,
-                approved: record.approved
+                esgScore: parseInt(record.esgScore),
+                creditAmount: parseInt(record.creditAmount),
+                approved: record.approved,
+                timestamp: Date.now(), // Use current timestamp as fallback
+                projectDescription: 'Legacy record', // Default description
+                loanAmount: parseInt(record.creditAmount) // Use creditAmount as loanAmount
             });
         }
 
+        console.log('Returning', records.length, 'records');
         res.json(records);
     } catch (err) {
+        console.error('Error fetching user records:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -321,11 +944,15 @@ app.get('/records/:id', authenticateToken, async (req, res) => {
         res.json({
             id: recordId,
             user: record.user,
-            esgScore: record.esgScore,
-            creditAmount: record.creditAmount,
-            approved: record.approved
+            esgScore: parseInt(record.esgScore),
+            creditAmount: parseInt(record.creditAmount),
+            approved: record.approved,
+            timestamp: Date.now(), // Use current timestamp as fallback
+            projectDescription: 'Legacy record', // Default description
+            loanAmount: parseInt(record.creditAmount) // Use creditAmount as loanAmount
         });
     } catch (err) {
+        console.error('Error fetching record:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -648,16 +1275,27 @@ function calculateTrends(records) {
 
 app.get('/user-stats', authenticateToken, async (req, res) => {
     try {
+        // Simplified version - return mock data for now
+        const recordCount = await contract.methods.recordCount().call();
         const userAddress = req.user.walletAddress || account;
-        const stats = await contract.methods.getUserStats(userAddress).call();
+        
+        // Calculate total tokens from records
+        let totalTokens = 0;
+        for (let i = 0; i < recordCount; i++) {
+            const record = await contract.methods.getRecord(i).call();
+            if (record.user.toLowerCase() === userAddress.toLowerCase()) {
+                totalTokens += parseInt(record.creditAmount);
+            }
+        }
         
         res.json({
-            totalRecords: parseInt(stats.totalRecords),
-            totalTokens: parseInt(stats.totalTokens),
-            redeemedAmount: parseInt(stats.redeemedAmount),
-            lastRedemption: parseInt(stats.lastRedemption)
+            totalRecords: parseInt(recordCount),
+            totalTokens: totalTokens,
+            redeemedAmount: 0,
+            lastRedemption: 0
         });
     } catch (err) {
+        console.error('Error fetching user stats:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -731,11 +1369,11 @@ app.get('/pending-approvals', authenticateToken, async (req, res) => {
                 pendingRecords.push({
                     id: i,
                     user: record.user,
-                    esgScore: record.esgScore,
-                    creditAmount: record.creditAmount,
-                    loanAmount: record.loanAmount,
+                    esgScore: parseInt(record.esgScore),
+                    creditAmount: parseInt(record.creditAmount),
+                    loanAmount: parseInt(record.loanAmount),
                     projectDescription: record.projectDescription,
-                    timestamp: record.timestamp
+                    timestamp: parseInt(record.timestamp)
                 });
             }
         }
@@ -743,6 +1381,33 @@ app.get('/pending-approvals', authenticateToken, async (req, res) => {
         res.json(pendingRecords);
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/health', async (req, res) => {
+    try {
+        // Test blockchain connection
+        const recordCount = await contract.methods.recordCount().call();
+        const contractAddress = await contract.options.address;
+        
+        res.json({
+            status: 'healthy',
+            blockchain: {
+                connected: true,
+                contractAddress: contractAddress,
+                recordCount: parseInt(recordCount)
+            },
+            timestamp: new Date().toISOString()
+        });
+    } catch (err) {
+        res.status(500).json({
+            status: 'unhealthy',
+            blockchain: {
+                connected: false,
+                error: err.message
+            },
+            timestamp: new Date().toISOString()
+        });
     }
 });
 

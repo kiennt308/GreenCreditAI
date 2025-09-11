@@ -27,9 +27,15 @@ contract GreenCredit is ERC20, Ownable {
     event TokensRedeemed(address indexed user, uint256 amount, string discount);
     event CreditApproved(uint256 indexed recordId, address indexed user, uint256 loanAmount);
 
-    constructor() ERC20("GreenCredit Token", "GCT") {
-        _mint(msg.sender, 1000000 * 10**decimals()); // Initial supply
-        totalTokensMinted = 1000000 * 10**decimals();
+    // Constructor nhẹ, không mint nhiều token
+    constructor() ERC20("GreenCredit Token", "GCT") Ownable(msg.sender) {
+        totalTokensMinted = 0;
+    }
+
+    // Mint token sau khi deploy, chỉ owner có quyền
+    function initialMint(address to, uint256 amount) external onlyOwner {
+        _mint(to, amount);
+        totalTokensMinted += amount;
     }
 
     function addRecord(
@@ -48,7 +54,7 @@ contract GreenCredit is ERC20, Ownable {
             loanAmount: _loanAmount
         });
         
-        // Mint tokens based on ESG score (higher score = more tokens)
+        // Mint tokens dựa trên ESG score
         uint256 tokensToMint = (_esgScore * _creditAmount) / 100;
         _mint(msg.sender, tokensToMint);
         totalTokensMinted += tokensToMint;
@@ -78,7 +84,6 @@ contract GreenCredit is ERC20, Ownable {
         redeemedTokens[msg.sender] += _amount;
         lastRedemptionTime[msg.sender] = block.timestamp;
         
-        // Emit event with discount calculation
         string memory discount = calculateDiscount(_amount);
         emit TokensRedeemed(msg.sender, _amount, discount);
     }
