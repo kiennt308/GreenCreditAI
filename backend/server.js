@@ -822,88 +822,52 @@ app.post('/login', async (req, res) => {
 
 
 
+// ✅ Evaluate ESG score
 app.post('/evaluate', authenticateToken, async (req, res) => {
-    const { revenue, emissions, projectDescription, loanAmount } = req.body;
-
-    // Đường dẫn tuyệt đối tới ai_model.py
-    const pythonPath = path.join(__dirname, '../ai/ai_model.py');
-    
-
-    // Gọi Python AI
-    const pyProcess = spawnSync('python', ['ai_model.py', revenue.toString(), emissions.toString()], {
-        cwd: path.join(__dirname, '../ai'),  // Chuyển working directory về thư mục ai
-        encoding: 'utf-8'
-    });
-
-    console.log("Python stdout:", pyProcess.stdout);
-    console.log("Python stderr:", pyProcess.stderr);
-
-    const rawOutput = pyProcess.stdout.toString().trim();
-    const esgScore = Number(rawOutput);
-
-    if (isNaN(esgScore)) {
-        return res.status(500).json({ 
-            error: "Python returned invalid number: " + rawOutput,
-            stderr: pyProcess.stderr
-        });
-    }
-
-    // Determine approval status based on ESG score
-    const isApproved = esgScore >= 70;
-    const creditAmount = isApproved ? (loanAmount || 1000) : 0;
-    const interestRate = calculateInterestRate(esgScore);
-
-    // Lưu vào Blockchain
     try {
-        const tx = contract.methods.addRecord(
-            Math.round(esgScore), 
-            creditAmount,
-            projectDescription || "Sustainable irrigation project",
-            loanAmount || 500000000 // 500M VND default
-        );
-        const gas = await tx.estimateGas({ from: account });
+        const { revenue, emissions } = req.body;
 
-        // Lấy gasPrice hiện tại và tăng 20%
-        const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+        // Debug log
+        console.log("DEBUG /evaluate body:", req.body);
 
-        // Lấy nonce mới nhất (bao gồm tx pending)
-        const nonce = await web3.eth.getTransactionCount(account, 'pending');
+        // Validate input
+        if (revenue === undefined || emissions === undefined) {
+            return res.status(400).json({
+                error: "Missing required fields: revenue and emissions"
+            });
+        }
 
-        const txData = {
-            from: account,
-            to: contractAddress,
-            data: tx.encodeABI(),
-            gas,
-            gasPrice,
-            nonce
-        };
+        // Ensure numeric values
+        const revenueStr = revenue.toString();
+        const emissionsStr = emissions.toString();
 
-        const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
-        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-
-        const response = {
-            esgScore: Math.round(esgScore),
-            txHash: receipt.transactionHash,
-            approved: isApproved,
-            creditAmount: creditAmount,
-            interestRate: interestRate,
-            loanAmount: loanAmount || 500000000,
-            projectDescription: projectDescription || "Sustainable irrigation project"
-        };
-
-        res.json(response);
-        
-        // Emit real-time notification
-        io.emit('transactionUpdate', {
-            esgScore: Math.round(esgScore),
-            txHash: receipt.transactionHash,
-            approved: isApproved,
-            creditAmount: creditAmount
+        // Run Python model
+        const pyProcess = spawnSync('python3', ['ai_model.py', revenueStr, emissionsStr], {
+            cwd: path.join(__dirname, '../ai'),
+            encoding: 'utf-8'
         });
+
+        if (pyProcess.error) {
+            console.error("Python error:", pyProcess.error);
+            return res.status(500).json({ error: pyProcess.error.message });
+        }
+
+        // Clean outputs
+        const stdout = (pyProcess.stdout || "").trim();
+        const stderr = (pyProcess.stderr || "").trim();
+
+        // Return result
+        return res.json({
+            result: stdout,
+            error: stderr
+        });
+
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error("Error in /evaluate:", err);
+        return res.status(500).json({ error: err.message });
     }
 });
+
 
 // Additional API endpoints
 app.get('/user-records', authenticateToken, async (req, res) => {
