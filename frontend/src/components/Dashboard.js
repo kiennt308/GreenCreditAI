@@ -1,30 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Line } from 'react-chartjs-2';
+// import { Line } from 'react-chartjs-2';
 import TokenRedemption from './TokenRedemption';
 import AdminPanel from './AdminPanel';
 import ProgressTracker from './ProgressTracker';
 import EnhancedAnalytics from './EnhancedAnalytics';
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend,
-} from 'chart.js';
+// import {
+//     Chart as ChartJS,
+//     CategoryScale,
+//     LinearScale,
+//     PointElement,
+//     LineElement,
+//     Title,
+//     Tooltip,
+//     Legend,
+// } from 'chart.js';
 
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    Title,
-    Tooltip,
-    Legend
-);
+// ChartJS.register(
+//     CategoryScale,
+//     LinearScale,
+//     PointElement,
+//     LineElement,
+//     Title,
+//     Tooltip,
+//     Legend
+// );
 
 const Dashboard = ({ user, token }) => {
     const [records, setRecords] = useState([]);
@@ -36,7 +36,7 @@ const Dashboard = ({ user, token }) => {
     useEffect(() => {
         fetchUserRecords();
         // Check if user is admin
-        setIsAdmin(user.email === 'admin@greencredit.ai' || user.username === 'admin');
+        setIsAdmin(user?.email === 'admin@greencredit.ai' || user?.username === 'admin');
     }, [user]);
 
     const fetchUserRecords = async () => {
@@ -109,7 +109,7 @@ const Dashboard = ({ user, token }) => {
         <div className="container mt-5">
             <div className="row">
                 <div className="col-12">
-                    <h2>Welcome, {user.username}!</h2>
+                    <h2>Welcome, {user?.username || 'User'}!</h2>
                     <p className="text-muted">Your GreenCredit AI Dashboard</p>
                 </div>
             </div>
@@ -180,7 +180,8 @@ const Dashboard = ({ user, token }) => {
                             <h5>ESG Score and Credit Trends</h5>
                         </div>
                         <div className="card-body">
-                            <Line data={chartData} options={chartOptions} />
+                            {/* <Line data={chartData} options={chartOptions} /> */}
+                            <p>Chart temporarily disabled for debugging</p>
                         </div>
                     </div>
                 </div>

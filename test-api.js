@@ -5,7 +5,7 @@ const BASE_URL = 'http://localhost:3001';
 // Test data
 const testUser = {
     username: 'testuser',
-    email: 'test@example.com',
+    email: 'test77@example.com',
     password: 'password123'
 };
 

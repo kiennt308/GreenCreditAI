@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import io from 'socket.io-client';
+// import io from 'socket.io-client';
 
 import Login from './components/Login';
 import Register from './components/Register';
@@ -61,7 +61,7 @@ function App() {
             <div className="navbar-nav ms-auto">
               {isAuthenticated ? (
                 <>
-                  <span className="navbar-text me-3">Welcome, {user?.username}</span>
+                  <span className="navbar-text me-3">Welcome, {user?.username || 'User'}</span>
                   <button className="btn btn-outline-light" onClick={handleLogout}>
                     Logout
                   </button>

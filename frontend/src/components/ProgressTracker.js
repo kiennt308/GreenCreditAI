@@ -83,7 +83,7 @@ const ProgressTracker = ({ user, token }) => {
         );
     }
 
-    if (!progressData || progressData.records.length === 0) {
+    if (!progressData || !progressData.records || progressData.records.length === 0) {
         return (
             <div className="container mt-5">
                 <div className="text-center">
@@ -95,11 +95,11 @@ const ProgressTracker = ({ user, token }) => {
     }
 
     const chartData = {
-        labels: progressData.trends.records.map(r => r.x),
+        labels: progressData?.trends?.records?.map(r => r.x) || [],
         datasets: [
             {
                 label: 'ESG Score',
-                data: progressData.trends.records.map(r => r.y),
+                data: progressData?.trends?.records?.map(r => r.y) || [],
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
                 tension: 0.1,
@@ -141,7 +141,7 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-md-3">
                     <div className="card bg-light">
                         <div className="card-body text-center">
-                            <h3 className="text-primary">{progressData.averageESGScore}</h3>
+                            <h3 className="text-primary">{progressData?.averageESGScore || 0}</h3>
                             <small>Average ESG Score</small>
                         </div>
                     </div>
@@ -149,8 +149,8 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-md-3">
                     <div className="card bg-light">
                         <div className="card-body text-center">
-                            <h3 className={`text-${getTrendColor(progressData.trends.trendDirection)}`}>
-                                {getTrendIcon(progressData.trends.trendDirection)} {progressData.trends.esgImprovement}
+                            <h3 className={`text-${getTrendColor(progressData?.trends?.trendDirection || 'stable')}`}>
+                                {getTrendIcon(progressData?.trends?.trendDirection || 'stable')} {progressData?.trends?.esgImprovement || 0}
                             </h3>
                             <small>ESG Improvement</small>
                         </div>
@@ -159,7 +159,7 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-md-3">
                     <div className="card bg-light">
                         <div className="card-body text-center">
-                            <h3 className="text-success">{progressData.trends.carbonReduction}</h3>
+                            <h3 className="text-success">{progressData?.trends?.carbonReduction || 0}</h3>
                             <small>Carbon Reduction (tons)</small>
                         </div>
                     </div>
@@ -167,7 +167,7 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-md-3">
                     <div className="card bg-light">
                         <div className="card-body text-center">
-                            <h3 className="text-info">{progressData.trends.sustainabilityScore}</h3>
+                            <h3 className="text-info">{progressData?.trends?.sustainabilityScore || 0}</h3>
                             <small>Sustainability Score</small>
                         </div>
                     </div>
@@ -208,7 +208,7 @@ const ProgressTracker = ({ user, token }) => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {progressData.records.slice(-10).reverse().map((record) => (
+                                        {(progressData?.records || []).slice(-10).reverse().map((record) => (
                                             <tr key={record.id}>
                                                 <td>
                                                     {new Date(record.timestamp * 1000).toLocaleDateString()}
@@ -252,18 +252,18 @@ const ProgressTracker = ({ user, token }) => {
                                     <h6>Environmental Impact</h6>
                                     <p className="text-muted">
                                         Your ESG improvements have resulted in an estimated{' '}
-                                        <strong>{progressData.trends.carbonReduction} tons</strong> of carbon reduction.
+                                        <strong>{progressData?.trends?.carbonReduction || 0} tons</strong> of carbon reduction.
                                     </p>
                                 </div>
                                 <div className="col-md-6">
                                     <h6>Trend Analysis</h6>
                                     <p className="text-muted">
                                         Your sustainability trend is{' '}
-                                        <span className={`text-${getTrendColor(progressData.trends.trendDirection)}`}>
-                                            {progressData.trends.trendDirection}
+                                        <span className={`text-${getTrendColor(progressData?.trends?.trendDirection || 'stable')}`}>
+                                            {progressData?.trends?.trendDirection || 'stable'}
                                         </span>
                                         {' '}with an ESG score change of{' '}
-                                        <strong>{progressData.trends.esgImprovement} points</strong>.
+                                        <strong>{progressData?.trends?.esgImprovement || 0} points</strong>.
                                     </p>
                                 </div>
                             </div>

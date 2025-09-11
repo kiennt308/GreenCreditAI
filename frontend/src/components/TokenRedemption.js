@@ -29,13 +29,35 @@ const TokenRedemption = ({ user, token }) => {
         setLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:3001/redeem-token', {
-                amount: amount
-            }, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const redeemAmount = amount; // Store the amount before clearing it
+            
+            // Mock response for testing - comment out when backend is ready
+            const redeemAmountNum = parseInt(redeemAmount) || 0;
+            const currentBalance = balance || 0;
+            const mockResponse = {
+                data: {
+                    discount: '10% interest reduction',
+                    newBalance: Math.max(0, currentBalance - redeemAmountNum),
+                    txHash: '0x1234567890abcdef1234567890abcdef12345678'
+                }
+            };
+            
+            // Uncomment this when backend is ready
+            // const response = await axios.post('http://localhost:3001/redeem-token', {
+            //     amount: amount
+            // }, {
+            //     headers: { 'Authorization': `Bearer ${token}` }
+            // });
 
-            setRedemptionResult(response.data);
+            // Ensure all required properties exist
+            const result = {
+                discount: mockResponse.data?.discount || 'N/A',
+                newBalance: mockResponse.data?.newBalance || 0,
+                txHash: mockResponse.data?.txHash || null,
+                redeemAmount: redeemAmount
+            };
+            
+            setRedemptionResult(result);
             setShowModal(true);
             setAmount('');
             fetchTokenBalance(); // Refresh balance
@@ -77,7 +99,7 @@ const TokenRedemption = ({ user, token }) => {
                                     <div className="card bg-light">
                                         <div className="card-body text-center">
                                             <h5 className="card-title">Current Balance</h5>
-                                            <h3 className="text-primary">{balance.toLocaleString()} GCT</h3>
+                                            <h3 className="text-primary">{(balance || 0).toLocaleString()} GCT</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -101,17 +123,17 @@ const TokenRedemption = ({ user, token }) => {
                                         value={amount}
                                         onChange={(e) => setAmount(e.target.value)}
                                         min="1"
-                                        max={balance}
+                                        max={balance || 0}
                                         required
                                     />
                                     <div className="form-text">
-                                        Available: {balance.toLocaleString()} GCT
+                                        Available: {(balance || 0).toLocaleString()} GCT
                                     </div>
                                 </div>
 
                                 {amount && (
                                     <div className="alert alert-info">
-                                        <strong>Preview:</strong> Redeeming {parseInt(amount).toLocaleString()} tokens will give you{' '}
+                                        <strong>Preview:</strong> Redeeming {(parseInt(amount) || 0).toLocaleString()} tokens will give you{' '}
                                         <span className={`badge bg-${getCurrentTier().color}`}>
                                             {getCurrentTier().discount}
                                         </span>
@@ -139,7 +161,7 @@ const TokenRedemption = ({ user, token }) => {
                                 <button
                                     type="submit"
                                     className="btn btn-success w-100"
-                                    disabled={loading || !amount || parseInt(amount) > balance}
+                                    disabled={loading || !amount || (parseInt(amount) || 0) > (balance || 0)}
                                 >
                                     {loading ? 'Processing...' : 'Redeem Tokens'}
                                 </button>
@@ -165,24 +187,28 @@ const TokenRedemption = ({ user, token }) => {
                             <div className="modal-body">
                                 <div className="alert alert-success">
                                     <h6>Your Benefits:</h6>
-                                    <p><strong>Discount:</strong> {redemptionResult.discount}</p>
+                                    <p><strong>Discount:</strong> {redemptionResult.discount || 'N/A'}</p>
                                     <p><strong>Loan Amount:</strong> 500,000,000 VND</p>
                                     <p><strong>Interest Rate:</strong> 8.5%</p>
                                     <p><strong>Valid Until:</strong> {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
                                 </div>
                                 <div className="alert alert-info">
                                     <h6>Transaction Details:</h6>
-                                    <p><strong>Amount Redeemed:</strong> {parseInt(amount).toLocaleString()} GCT</p>
-                                    <p><strong>New Balance:</strong> {redemptionResult.newBalance.toLocaleString()} GCT</p>
+                                    <p><strong>Amount Redeemed:</strong> {parseInt(redemptionResult.redeemAmount || 0).toLocaleString()} GCT</p>
+                                    <p><strong>New Balance:</strong> {(redemptionResult.newBalance || 0).toLocaleString()} GCT</p>
                                     <p><strong>Transaction Hash:</strong> 
-                                        <a 
-                                            href={`https://sepolia.etherscan.io/tx/${redemptionResult.txHash}`}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="ms-2"
-                                        >
-                                            {redemptionResult.txHash}
-                                        </a>
+                                        {redemptionResult.txHash ? (
+                                            <a 
+                                                href={`https://sepolia.etherscan.io/tx/${redemptionResult.txHash}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="ms-2"
+                                            >
+                                                {redemptionResult.txHash}
+                                            </a>
+                                        ) : (
+                                            <span className="ms-2">N/A</span>
+                                        )}
                                     </p>
                                 </div>
                             </div>
