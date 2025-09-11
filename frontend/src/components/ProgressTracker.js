@@ -223,7 +223,7 @@ const ProgressTracker = ({ user, token }) => {
                                                         <small>{record.projectDescription}</small>
                                                     </div>
                                                 </td>
-                                                <td>{record.loanAmount.toLocaleString()} VND</td>
+                                                <td>{record.loanAmount?.toLocaleString()} VND</td>
                                                 <td>
                                                     <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
                                                         {record.approved ? 'Approved' : 'Pending'}
