@@ -1,47 +1,116 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import axios from 'axios';
+import 'bootstrap/dist/css/bootstrap.min.css';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import io from 'socket.io-client';
+
+import Login from './components/Login';
+import Register from './components/Register';
+import Dashboard from './components/Dashboard';
+import ProtectedRoute from './components/ProtectedRoute';
+import EvaluationForm from './components/EvaluationForm';
 
 function App() {
-  const [revenue, setRevenue] = useState('');
-  const [emissions, setEmissions] = useState('');
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
-    try {
-      const res = await axios.post('http://localhost:3001/evaluate', { revenue: parseFloat(revenue), emissions: parseFloat(emissions) });
-      setResult(res.data);
-    } catch (err) {
-      setError('Error: ' + err.message);
+  useEffect(() => {
+    // Check for stored authentication
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+      setIsAuthenticated(true);
     }
+  }, []);
+
+  const handleLogin = (userData, tokenData) => {
+    setUser(userData);
+    setToken(tokenData);
+    setIsAuthenticated(true);
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    setUser(null);
+    setToken(null);
+    setIsAuthenticated(false);
+  };
+
+  // Set up axios defaults for authenticated requests
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
+
   return (
-    <div style={{ padding: '20px' }}>
-      <h1>GreenCredit AI Demo</h1>
-      <form onSubmit={handleSubmit}>
-        <label>
-          Revenue:
-          <input type="number" value={revenue} onChange={(e) => setRevenue(e.target.value)} required />
-        </label>
-        <br />
-        <label>
-          Emissions:
-          <input type="number" value={emissions} onChange={(e) => setEmissions(e.target.value)} required />
-        </label>
-        <br />
-        <button type="submit">Evaluate ESG and Submit to Blockchain</button>
-      </form>
-      {result && (
-        <div>
-          <p>ESG Score: {result.esgScore}</p>
-          <p>Transaction Hash: {result.txHash}</p>
-        </div>
-      )}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-    </div>
+    <Router>
+      <div className="App">
+        <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
+          <div className="container">
+            <a className="navbar-brand" href="/">GreenCredit AI</a>
+            <div className="navbar-nav ms-auto">
+              {isAuthenticated ? (
+                <>
+                  <span className="navbar-text me-3">Welcome, {user?.username}</span>
+                  <button className="btn btn-outline-light" onClick={handleLogout}>
+                    Logout
+                  </button>
+                </>
+              ) : (
+                <>
+                  <a className="nav-link" href="/login">Login</a>
+                  <a className="nav-link" href="/register">Register</a>
+                </>
+              )}
+            </div>
+          </div>
+        </nav>
+
+        <Routes>
+          <Route path="/login" element={
+            isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} />
+          } />
+          <Route path="/register" element={
+            isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register onLogin={handleLogin} />
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <Dashboard user={user} token={token} />
+            </ProtectedRoute>
+          } />
+          <Route path="/evaluate" element={
+            <ProtectedRoute isAuthenticated={isAuthenticated}>
+              <EvaluationForm user={user} token={token} />
+            </ProtectedRoute>
+          } />
+          <Route path="/" element={
+            isAuthenticated ? <Navigate to="/dashboard" replace /> : <Navigate to="/login" replace />
+          } />
+        </Routes>
+
+        <ToastContainer
+          position="top-right"
+          autoClose={5000}
+          hideProgressBar={false}
+          newestOnTop={false}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+        />
+      </div>
+    </Router>
   );
 }
 
