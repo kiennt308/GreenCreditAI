@@ -1,9 +1,6 @@
+const User = require('./models/userModel'); // Đường dẫn đến model User
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-
-// In-memory user storage (upgradeable to MongoDB)
-const users = [];
-
 const JWT_SECRET = 'greencreditsecret';
 const JWT_EXPIRES_IN = '1h';
 
@@ -11,7 +8,7 @@ const JWT_EXPIRES_IN = '1h';
 const register = async (username, email, password) => {
     try {
         // Check if user already exists
-        const existingUser = users.find(u => u.email === email || u.username === username);
+        const existingUser = await User.findOne({ $or: [{ email }, { username }] });
         if (existingUser) {
             throw new Error('User already exists');
         }
@@ -21,26 +18,28 @@ const register = async (username, email, password) => {
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
         // Create user
-        const user = {
-            id: users.length + 1,
+        const user = new User({
             username,
             email,
             password: hashedPassword,
+            address: '', // Hoặc một giá trị hợp lệ
+            esgScore: 0, // Hoặc một giá trị hợp lệ
+            creditAmount: 0, // Hoặc một giá trị hợp lệ
             createdAt: new Date()
-        };
+        });
 
-        users.push(user);
+        await user.save();
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user.id, email: user.email },
+            { userId: user._id, email: user.email },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
 
         return {
             user: {
-                id: user.id,
+                id: user._id,
                 username: user.username,
                 email: user.email,
                 createdAt: user.createdAt
@@ -56,7 +55,7 @@ const register = async (username, email, password) => {
 const login = async (email, password) => {
     try {
         // Find user
-        const user = users.find(u => u.email === email);
+        const user = await User.findOne({ email });
         if (!user) {
             throw new Error('Invalid credentials');
         }
@@ -69,14 +68,14 @@ const login = async (email, password) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user.id, email: user.email },
+            { userId: user._id, email: user.email },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
 
         return {
             user: {
-                id: user.id,
+                id: user._id,
                 username: user.username,
                 email: user.email,
                 createdAt: user.createdAt
@@ -98,8 +97,8 @@ const verifyToken = (token) => {
 };
 
 // Get user by ID
-const getUserById = (userId) => {
-    return users.find(u => u.id === userId);
+const getUserById = async (userId) => {
+    return await User.findById(userId);
 };
 
 module.exports = {

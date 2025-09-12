@@ -1,4 +1,4 @@
-const { verifyToken, getUserById } = require('./userModel');
+const { verifyToken, getUserById } = require('./userMethods');
 
 // JWT Authentication Middleware
 const authenticateToken = (req, res, next) => {

@@ -9,6 +9,7 @@ const axios = require('axios');
 
 const app = express();
 const server = http.createServer(app);
+
 const io = socketIo(server, {
     cors: {
         origin: "http://localhost:3000",
@@ -18,6 +19,18 @@ const io = socketIo(server, {
 
 app.use(express.json());
 require('dotenv').config();
+
+const mongoose = require('mongoose');
+// Kết nối đến MongoDB
+mongoose.connect(`${process.env.MONGODB_URI}`, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+}).then(() => {
+    console.log('Connected to MongoDB');
+}).catch((error) => {
+    console.error('MongoDB connection error:', error);
+});
+
 const cors = require('cors');
 app.use(cors({
     origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
@@ -32,7 +45,7 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Import authentication modules
-const { register, login } = require('./userModel');
+const { register, login } = require('./userMethods');
 const { authenticateToken } = require('./authMiddleware');
 
 // Thay bằng Infura key (tạo miễn phí tại https://app.infura.io/register)
