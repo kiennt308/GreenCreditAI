@@ -1149,15 +1149,19 @@ app.get('/esg-analytics', authenticateToken, async (req, res) => {
 
         for (let i = 0; i < recordCount; i++) {
             const record = await contract.methods.getRecord(i).call();
+			const timestamp = parseInt(record.timestamp);
+            const isValidTimestamp = !isNaN(timestamp) && timestamp > 0;
+			const currentTime = Math.floor(Date.now() / 1000);
+			
             const recordData = {
                 id: i,
                 esgScore: parseInt(record.esgScore),
                 creditAmount: parseInt(record.creditAmount),
-                timestamp: parseInt(record.timestamp),
+                timestamp: isValidTimestamp ? timestamp : currentTime, // Fallback to current time,
                 projectDescription: record.projectDescription,
                 loanAmount: parseInt(record.loanAmount),
                 approved: record.approved,
-                sector: determineSector(record.projectDescription)
+                sector: determineSector(record.projectDescription || "")
             };
 
             // Apply filters
@@ -1205,7 +1209,7 @@ app.get('/esg-analytics', authenticateToken, async (req, res) => {
 
 // Determine sector based on project description
 function determineSector(description) {
-    const desc = description.toLowerCase();
+    const desc = description?.toLowerCase();
     if (desc.includes('agriculture') || desc.includes('farming') || desc.includes('irrigation')) return 'Agriculture';
     if (desc.includes('energy') || desc.includes('solar') || desc.includes('wind')) return 'Energy';
     if (desc.includes('manufacturing') || desc.includes('production')) return 'Manufacturing';

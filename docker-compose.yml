@@ -3,15 +3,18 @@ version: '3.8'
 services:
   backend:
     build: ./backend
+    env_file:
+      - ./backend/.env
     ports:
       - "3001:3001"
     environment:
-      - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
-      - ACCOUNT=${ACCOUNT}
-      - PRIVATE_KEY=${PRIVATE_KEY}
+      # - CONTRACT_ADDRESS=${CONTRACT_ADDRESS}
+      # - ACCOUNT=${ACCOUNT}
+      # - PRIVATE_KEY=${PRIVATE_KEY}
       - PORT=3001
     volumes:
       - ./ai:/app/ai
+      - ./backend:/app/backend
     depends_on:
       - mongo
 
@@ -21,6 +24,8 @@ services:
       - "3000:3000"
     environment:
       - REACT_APP_API_URL=http://localhost:3001
+    volumes:
+      - ./frontend:/app/frontend
     depends_on:
       - backend
 
