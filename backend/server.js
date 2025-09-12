@@ -841,8 +841,9 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
         const revenueStr = revenue.toString();
         const emissionsStr = emissions.toString();
 
-        // Run Python model
-        const pyProcess = spawnSync('python3', ['ai_model.py', revenueStr, emissionsStr], {
+        // Run Python model (cross-platform compatible)
+        const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
+        const pyProcess = spawnSync(pythonCommand, ['ai_model.py', revenueStr, emissionsStr], {
             cwd: path.join(__dirname, '../ai'),
             encoding: 'utf-8'
         });
@@ -868,6 +869,80 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
     }
 });
 
+// Create new record endpoint
+app.post('/create-record', authenticateToken, async (req, res) => {
+    try {
+        const { esgScore, creditAmount, projectDescription, loanAmount } = req.body;
+        
+        // Validate input
+        if (!esgScore || !creditAmount) {
+            return res.status(400).json({
+                error: "Missing required fields: esgScore and creditAmount"
+            });
+        }
+        
+        // Call smart contract to create record
+        const tx = contract.methods.addRecord(
+            parseInt(esgScore),
+            parseInt(creditAmount),
+            projectDescription || 'ESG Project',
+            parseInt(loanAmount) || parseInt(creditAmount)
+        );
+        
+        const gas = await tx.estimateGas({ from: account });
+        const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+        const nonce = await web3.eth.getTransactionCount(account, 'pending');
+        
+        const txData = {
+            from: account,
+            to: contractAddress,
+            data: tx.encodeABI(),
+            gas,
+            gasPrice,
+            nonce
+        };
+        
+        const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        
+        console.log('Transaction receipt:', JSON.stringify(receipt, null, 2));
+        
+        // Get the record ID from the event (handle case where event might not be available)
+        let recordId = null;
+        if (receipt.events && receipt.events.RecordAdded) {
+            recordId = receipt.events.RecordAdded.returnValues.id;
+            console.log('Record ID from event:', recordId);
+        } else {
+            console.log('RecordAdded event not found, using fallback method');
+            // Fallback: get record count from contract to determine new record ID
+            try {
+                const recordCount = await contract.methods.recordCount().call();
+                recordId = recordCount - 1; // New record will be at index (count - 1)
+                console.log('Record ID from contract count:', recordId);
+            } catch (err) {
+                console.log('Could not get record count, using fallback ID');
+                recordId = 'unknown';
+            }
+        }
+        
+        res.json({
+            success: true,
+            recordId: recordId,
+            txHash: receipt.transactionHash,
+            message: 'Record created successfully',
+            data: {
+                esgScore: parseInt(esgScore),
+                creditAmount: parseInt(creditAmount),
+                projectDescription: projectDescription || 'ESG Project',
+                loanAmount: parseInt(loanAmount) || parseInt(creditAmount)
+            }
+        });
+        
+    } catch (err) {
+        console.error('Error creating record:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // Additional API endpoints
 app.get('/user-records', authenticateToken, async (req, res) => {

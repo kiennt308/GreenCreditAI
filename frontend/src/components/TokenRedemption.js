@@ -7,11 +7,21 @@ import 'react-toastify/dist/ReactToastify.css';
 
 const TokenRedemption = ({ user, token }) => {
   const { t } = useTranslation();
+  
+  // Token redemption states
   const [amount, setAmount] = useState('');
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
+  
+  // ESG evaluation states
+  const [revenue, setRevenue] = useState('');
+  const [emissions, setEmissions] = useState('');
+  const [esgScore, setEsgScore] = useState(null);
+  const [esgLoading, setEsgLoading] = useState(false);
+  const [esgError, setEsgError] = useState('');
+  const [showEsgResult, setShowEsgResult] = useState(false);
 
   // API base (use env var in production)
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
@@ -33,6 +43,73 @@ const TokenRedemption = ({ user, token }) => {
       console.error('Error fetching balance:', err);
       // don't toast here to avoid noisy messages on mount; uncomment if you want visible error
       // toast.error('Không thể lấy số dư hiện tại');
+    }
+  };
+
+  // ESG Evaluation function
+  const handleEsgEvaluation = async (e) => {
+    e.preventDefault();
+    setEsgLoading(true);
+    setEsgError('');
+    setEsgScore(null);
+    setShowEsgResult(false);
+
+    try {
+      // Validate input
+      if (!revenue || !emissions) {
+        setEsgError(t('tokens.esgValidationError'));
+        return;
+      }
+
+      const revenueNum = parseFloat(revenue);
+      const emissionsNum = parseFloat(emissions);
+
+      if (isNaN(revenueNum) || isNaN(emissionsNum) || revenueNum <= 0 || emissionsNum < 0) {
+        setEsgError(t('tokens.esgInvalidInput'));
+        return;
+      }
+
+      // Call ESG evaluation API
+      const response = await axios.post(
+        `${API_BASE}/evaluate`,
+        { 
+          revenue: revenueNum, 
+          emissions: emissionsNum 
+        },
+        { 
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+
+      const { result, error } = response.data;
+      
+      if (error) {
+        setEsgError(error);
+        return;
+      }
+
+      const score = parseFloat(result);
+      if (isNaN(score)) {
+        setEsgError(t('tokens.esgInvalidResponse'));
+        return;
+      }
+
+      setEsgScore(score);
+      setShowEsgResult(true);
+      
+      // Show success message
+      toast.success(t('tokens.esgEvaluationSuccess', { score: score.toFixed(2) }));
+
+    } catch (err) {
+      console.error('ESG evaluation error:', err);
+      const errorMsg = err?.response?.data?.error || err?.message || t('tokens.esgEvaluationError');
+      setEsgError(errorMsg);
+      toast.error(errorMsg);
+    } finally {
+      setEsgLoading(false);
     }
   };
 
@@ -101,12 +178,113 @@ const TokenRedemption = ({ user, token }) => {
 
   const amountNum = parseInt(amount, 10) || 0;
   const currentTier = getTierForAmount(amountNum);
+  const isEligibleForTokens = esgScore && esgScore >= 80;
 
   return (
     <div className="container mt-4">
       <ToastContainer position="top-right" autoClose={3000} />
       <div className="row justify-content-center">
-        <div className="col-md-8">
+        <div className="col-md-10">
+          
+          {/* ESG Evaluation Section */}
+          <div className="card mb-4">
+            <div className="card-header">
+              <h4 className="mb-0">🌱 {t('tokens.esgEvaluation')}</h4>
+              <p className="text-muted mb-0">{t('tokens.esgEvaluationSubtitle')}</p>
+            </div>
+            <div className="card-body">
+              <form onSubmit={handleEsgEvaluation}>
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="revenue" className="form-label">{t('tokens.revenue')}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="revenue"
+                      value={revenue}
+                      onChange={(e) => setRevenue(e.target.value)}
+                      min="0"
+                      step="0.01"
+                      required
+                      placeholder={t('tokens.revenuePlaceholder')}
+                    />
+                    <div className="form-text">{t('tokens.revenueHelp')}</div>
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="emissions" className="form-label">{t('tokens.emissions')}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="emissions"
+                      value={emissions}
+                      onChange={(e) => setEmissions(e.target.value)}
+                      min="0"
+                      step="0.01"
+                      required
+                      placeholder={t('tokens.emissionsPlaceholder')}
+                    />
+                    <div className="form-text">{t('tokens.emissionsHelp')}</div>
+                  </div>
+                </div>
+
+                {esgError && (
+                  <div className="alert alert-danger" role="alert">
+                    {esgError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={esgLoading || !revenue || !emissions}
+                >
+                  {esgLoading ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                      {t('tokens.esgEvaluating')}
+                    </>
+                  ) : (
+                    t('tokens.evaluateEsg')
+                  )}
+                </button>
+              </form>
+
+              {/* ESG Result Display */}
+              {showEsgResult && esgScore !== null && (
+                <div className="mt-4">
+                  <div className={`alert ${isEligibleForTokens ? 'alert-success' : 'alert-info'}`}>
+                    <h5>{t('tokens.esgResult')}</h5>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <p><strong>{t('tokens.esgScore')}:</strong> 
+                          <span className={`badge ${isEligibleForTokens ? 'bg-success' : 'bg-warning'} ms-2`}>
+                            {esgScore.toFixed(2)}
+                          </span>
+                        </p>
+                        <p><strong>{t('tokens.revenue')}:</strong> {parseFloat(revenue).toLocaleString()} VND</p>
+                        <p><strong>{t('tokens.emissions')}:</strong> {parseFloat(emissions).toLocaleString()} tons CO2</p>
+                      </div>
+                      <div className="col-md-6">
+                        {isEligibleForTokens ? (
+                          <div className="text-success">
+                            <h6>🎉 {t('tokens.eligibleForTokens')}</h6>
+                            <p className="mb-0">{t('tokens.eligibleMessage')}</p>
+                          </div>
+                        ) : (
+                          <div className="text-warning">
+                            <h6>📈 {t('tokens.improveEsg')}</h6>
+                            <p className="mb-0">{t('tokens.improveMessage', { score: esgScore.toFixed(2) })}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Token Redemption Section */}
           <div className="card">
             <div className="card-header">
               <h4 className="mb-0">🪙 {t('tokens.title')}</h4>
