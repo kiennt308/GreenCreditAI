@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
 // import { Line } from 'react-chartjs-2';
 import TokenRedemption from './TokenRedemption';
 import AdminPanel from './AdminPanel';
@@ -27,6 +28,7 @@ import EnhancedAnalytics from './EnhancedAnalytics';
 // );
 
 const Dashboard = ({ user, token }) => {
+    const { t } = useTranslation();
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -48,7 +50,7 @@ const Dashboard = ({ user, token }) => {
             });
             setRecords(response.data);
         } catch (err) {
-            setError('Failed to fetch records');
+            setError(t('dashboard.error'));
             console.error('Error fetching records:', err);
         } finally {
             setLoading(false);
@@ -98,7 +100,7 @@ const Dashboard = ({ user, token }) => {
             <div className="container mt-5">
                 <div className="text-center">
                     <div className="spinner-border" role="status">
-                        <span className="visually-hidden">Loading...</span>
+                        <span className="visually-hidden">{t('common.loading')}</span>
                     </div>
                 </div>
             </div>
@@ -109,8 +111,8 @@ const Dashboard = ({ user, token }) => {
         <div className="container mt-5">
             <div className="row">
                 <div className="col-12">
-                    <h2>Welcome, {user?.username || 'User'}!</h2>
-                    <p className="text-muted">Your GreenCredit AI Dashboard</p>
+                    <h2>{t('dashboard.welcomeMessage', { username: user?.username || 'User' })}</h2>
+                    <p className="text-muted">{t('dashboard.subtitle')}</p>
                 </div>
             </div>
 
@@ -123,7 +125,7 @@ const Dashboard = ({ user, token }) => {
                                 className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('overview')}
                             >
-                                📊 Overview
+                                📊 {t('navigation.overview')}
                             </button>
                         </li>
                         <li className="nav-item">
@@ -131,7 +133,7 @@ const Dashboard = ({ user, token }) => {
                                 className={`nav-link ${activeTab === 'tokens' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('tokens')}
                             >
-                                🪙 Token Redemption
+                                🪙 {t('navigation.tokens')}
                             </button>
                         </li>
                         <li className="nav-item">
@@ -139,7 +141,7 @@ const Dashboard = ({ user, token }) => {
                                 className={`nav-link ${activeTab === 'progress' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('progress')}
                             >
-                                🌱 Progress Tracker
+                                🌱 {t('navigation.progress')}
                             </button>
                         </li>
                         <li className="nav-item">
@@ -147,7 +149,7 @@ const Dashboard = ({ user, token }) => {
                                 className={`nav-link ${activeTab === 'analytics' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('analytics')}
                             >
-                                📊 Analytics
+                                📊 {t('navigation.analytics')}
                             </button>
                         </li>
                         {isAdmin && (
@@ -156,7 +158,7 @@ const Dashboard = ({ user, token }) => {
                                     className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('admin')}
                                 >
-                                    🔐 Admin Panel
+                                    🔐 {t('navigation.admin')}
                                 </button>
                             </li>
                         )}
@@ -177,11 +179,11 @@ const Dashboard = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>ESG Score and Credit Trends</h5>
+                            <h5>{t('dashboard.esgScoreTrends')}</h5>
                         </div>
                         <div className="card-body">
                             {/* <Line data={chartData} options={chartOptions} /> */}
-                            <p>Chart temporarily disabled for debugging</p>
+                            <p>{t('dashboard.chartDisabled')}</p>
                         </div>
                     </div>
                 </div>
@@ -191,21 +193,21 @@ const Dashboard = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>Your Records</h5>
+                            <h5>{t('dashboard.yourRecords')}</h5>
                         </div>
                         <div className="card-body">
                             {records.length === 0 ? (
-                                <p className="text-muted">No records found. Submit an evaluation to see your data here.</p>
+                                <p className="text-muted">{t('dashboard.noRecords')}</p>
                             ) : (
                                 <div className="table-responsive">
                                     <table className="table table-striped">
                                         <thead>
                                             <tr>
-                                                <th>Record ID</th>
-                                                <th>ESG Score</th>
-                                                <th>Credit Amount</th>
-                                                <th>Status</th>
-                                                <th>User Address</th>
+                                                <th>{t('dashboard.recordId')}</th>
+                                                <th>{t('dashboard.esgScore')}</th>
+                                                <th>{t('dashboard.creditAmount')}</th>
+                                                <th>{t('dashboard.status')}</th>
+                                                <th>{t('dashboard.userAddress')}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -216,7 +218,7 @@ const Dashboard = ({ user, token }) => {
                                                     <td>{record.creditAmount}</td>
                                                     <td>
                                                         <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
-                                                            {record.approved ? 'Approved' : 'Pending'}
+                                                            {record.approved ? t('dashboard.approved') : t('dashboard.pending')}
                                                         </span>
                                                     </td>
                                                     <td>{record.user}</td>

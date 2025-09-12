@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Line } from 'react-chartjs-2';
+import { useTranslation } from 'react-i18next';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -23,6 +24,7 @@ ChartJS.register(
 );
 
 const ProgressTracker = ({ user, token }) => {
+    const { t } = useTranslation();
     const [progressData, setProgressData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -38,7 +40,7 @@ const ProgressTracker = ({ user, token }) => {
             });
             setProgressData(response.data);
         } catch (err) {
-            setError('Failed to fetch progress data');
+            setError(t('progress.fetchError'));
             console.error('Error fetching progress data:', err);
         } finally {
             setLoading(false);
@@ -66,7 +68,7 @@ const ProgressTracker = ({ user, token }) => {
             <div className="container mt-5">
                 <div className="text-center">
                     <div className="spinner-border" role="status">
-                        <span className="visually-hidden">Loading...</span>
+                        <span className="visually-hidden">{t('common.loading')}</span>
                     </div>
                 </div>
             </div>
@@ -87,8 +89,8 @@ const ProgressTracker = ({ user, token }) => {
         return (
             <div className="container mt-5">
                 <div className="text-center">
-                    <h4>No Progress Data Available</h4>
-                    <p className="text-muted">Submit some evaluations to see your sustainability progress.</p>
+                    <h4>{t('progress.noData')}</h4>
+                    <p className="text-muted">{t('progress.submitEvaluations')}</p>
                 </div>
             </div>
         );
@@ -98,7 +100,7 @@ const ProgressTracker = ({ user, token }) => {
         labels: progressData?.trends?.records?.map(r => r.x) || [],
         datasets: [
             {
-                label: 'ESG Score',
+                label: t('progress.esgScore'),
                 data: progressData?.trends?.records?.map(r => r.y) || [],
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
@@ -116,7 +118,7 @@ const ProgressTracker = ({ user, token }) => {
             },
             title: {
                 display: true,
-                text: 'ESG Score Progress Over Time'
+                text: t('progress.chartTitle')
             }
         },
         scales: {
@@ -131,8 +133,8 @@ const ProgressTracker = ({ user, token }) => {
         <div className="container mt-5">
             <div className="row">
                 <div className="col-12">
-                    <h2>🌱 Sustainability Progress Tracker</h2>
-                    <p className="text-muted">Track your environmental impact and ESG improvements over time</p>
+                    <h2>🌱 {t('progress.title')}</h2>
+                    <p className="text-muted">{t('progress.subtitle')}</p>
                 </div>
             </div>
 
@@ -142,7 +144,7 @@ const ProgressTracker = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-primary">{progressData?.averageESGScore || 0}</h3>
-                            <small>Average ESG Score</small>
+                            <small>{t('progress.averageESGScore')}</small>
                         </div>
                     </div>
                 </div>
@@ -152,7 +154,7 @@ const ProgressTracker = ({ user, token }) => {
                             <h3 className={`text-${getTrendColor(progressData?.trends?.trendDirection || 'stable')}`}>
                                 {getTrendIcon(progressData?.trends?.trendDirection || 'stable')} {progressData?.trends?.esgImprovement || 0}
                             </h3>
-                            <small>ESG Improvement</small>
+                            <small>{t('progress.esgImprovement')}</small>
                         </div>
                     </div>
                 </div>
@@ -160,7 +162,7 @@ const ProgressTracker = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-success">{progressData?.trends?.carbonReduction || 0}</h3>
-                            <small>Carbon Reduction (tons)</small>
+                            <small>{t('progress.carbonReduction')}</small>
                         </div>
                     </div>
                 </div>
@@ -168,7 +170,7 @@ const ProgressTracker = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-info">{progressData?.trends?.sustainabilityScore || 0}</h3>
-                            <small>Sustainability Score</small>
+                            <small>{t('progress.sustainabilityScore')}</small>
                         </div>
                     </div>
                 </div>
@@ -179,7 +181,7 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>ESG Score Trend Analysis</h5>
+                            <h5>{t('progress.trendAnalysis')}</h5>
                         </div>
                         <div className="card-body">
                             <Line data={chartData} options={chartOptions} />
@@ -193,18 +195,18 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>Recent Sustainability Records</h5>
+                            <h5>{t('progress.recentRecords')}</h5>
                         </div>
                         <div className="card-body">
                             <div className="table-responsive">
                                 <table className="table table-striped">
                                     <thead>
                                         <tr>
-                                            <th>Date</th>
-                                            <th>ESG Score</th>
-                                            <th>Project</th>
-                                            <th>Loan Amount</th>
-                                            <th>Status</th>
+                                            <th>{t('progress.date')}</th>
+                                            <th>{t('progress.esgScore')}</th>
+                                            <th>{t('progress.project')}</th>
+                                            <th>{t('progress.loanAmount')}</th>
+                                            <th>{t('progress.status')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -226,7 +228,7 @@ const ProgressTracker = ({ user, token }) => {
                                                 <td>{record.loanAmount.toLocaleString()} VND</td>
                                                 <td>
                                                     <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
-                                                        {record.approved ? 'Approved' : 'Pending'}
+                                                        {record.approved ? t('progress.approved') : t('progress.pending')}
                                                     </span>
                                                 </td>
                                             </tr>
@@ -244,26 +246,23 @@ const ProgressTracker = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>💡 Sustainability Insights</h5>
+                            <h5>💡 {t('progress.insights')}</h5>
                         </div>
                         <div className="card-body">
                             <div className="row">
                                 <div className="col-md-6">
-                                    <h6>Environmental Impact</h6>
+                                    <h6>{t('progress.environmentalImpact')}</h6>
                                     <p className="text-muted">
-                                        Your ESG improvements have resulted in an estimated{' '}
-                                        <strong>{progressData?.trends?.carbonReduction || 0} tons</strong> of carbon reduction.
+                                        {t('progress.carbonReductionText', { tons: progressData?.trends?.carbonReduction || 0 })}
                                     </p>
                                 </div>
                                 <div className="col-md-6">
-                                    <h6>Trend Analysis</h6>
+                                    <h6>{t('progress.trendAnalysis')}</h6>
                                     <p className="text-muted">
-                                        Your sustainability trend is{' '}
-                                        <span className={`text-${getTrendColor(progressData?.trends?.trendDirection || 'stable')}`}>
-                                            {progressData?.trends?.trendDirection || 'stable'}
-                                        </span>
-                                        {' '}with an ESG score change of{' '}
-                                        <strong>{progressData?.trends?.esgImprovement || 0} points</strong>.
+                                        {t('progress.trendText', { 
+                                            trend: progressData?.trends?.trendDirection || 'stable',
+                                            points: progressData?.trends?.esgImprovement || 0 
+                                        })}
                                     </p>
                                 </div>
                             </div>

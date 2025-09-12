@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const Login = ({ onLogin }) => {
+    const { t } = useTranslation();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -32,7 +34,7 @@ const Login = ({ onLogin }) => {
             // Navigate to dashboard
             navigate('/dashboard');
         } catch (err) {
-            setError(err.response?.data?.error || 'Login failed');
+            setError(err.response?.data?.error || t('auth.loginError'));
         } finally {
             setLoading(false);
         }
@@ -44,12 +46,12 @@ const Login = ({ onLogin }) => {
                 <div className="col-md-6">
                     <div className="card">
                         <div className="card-header">
-                            <h3 className="text-center">Login to GreenCredit AI</h3>
+                            <h3 className="text-center">{t('auth.login')} - GreenCredit AI</h3>
                         </div>
                         <div className="card-body">
                             <form onSubmit={handleSubmit}>
                                 <div className="mb-3">
-                                    <label htmlFor="email" className="form-label">Email</label>
+                                    <label htmlFor="email" className="form-label">{t('auth.email')}</label>
                                     <input
                                         type="email"
                                         className="form-control"
@@ -60,7 +62,7 @@ const Login = ({ onLogin }) => {
                                     />
                                 </div>
                                 <div className="mb-3">
-                                    <label htmlFor="password" className="form-label">Password</label>
+                                    <label htmlFor="password" className="form-label">{t('auth.password')}</label>
                                     <input
                                         type="password"
                                         className="form-control"
@@ -80,11 +82,11 @@ const Login = ({ onLogin }) => {
                                     className="btn btn-primary w-100"
                                     disabled={loading}
                                 >
-                                    {loading ? 'Logging in...' : 'Login'}
+                                    {loading ? t('common.loading') : t('auth.loginButton')}
                                 </button>
                             </form>
                             <div className="text-center mt-3">
-                                <p>Don't have an account? <a href="/register">Register here</a></p>
+                                <p>{t('auth.registerPrompt')} <a href="/register">{t('auth.register')}</a></p>
                             </div>
                         </div>
                     </div>
