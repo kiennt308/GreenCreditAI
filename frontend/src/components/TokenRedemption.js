@@ -33,16 +33,14 @@ const TokenRedemption = ({ user, token }) => {
 
   const fetchTokenBalance = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/user-stats`, {
+      const res = await axios.get(`${API_BASE}/token-balance`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       // try common property names, fallback to 0
-      const total = Number(res.data?.totalTokens ?? res.data?.total ?? 0);
+      const total = Number(res.data?.totalBalance ?? res.data?.totalBalance ?? 0);
       setBalance(Number.isFinite(total) ? total : 0);
     } catch (err) {
       console.error('Error fetching balance:', err);
-      // don't toast here to avoid noisy messages on mount; uncomment if you want visible error
-      // toast.error('Không thể lấy số dư hiện tại');
     }
   };
 
@@ -153,16 +151,19 @@ const TokenRedemption = ({ user, token }) => {
 
       const data = res?.data ?? {};
 
+      const newBalance = Number(data.newBalance ?? Math.max(0, (balance || 0) - redeemAmount));
+
       // Normalize response into our result object (safe defaults)
       const result = {
         discount: data.discount ?? getTierForAmount(redeemAmount)?.discount ?? 'N/A',
-        newBalance: Number(data.newBalance ?? Math.max(0, (balance || 0) - redeemAmount)),
+        newBalance: newBalance,
         txHash: data.txHash ?? null,
         redeemAmount: redeemAmount,
         message: data.message ?? null,
       };
 
       setRedemptionResult(result);
+      setBalance(newBalance);
       setShowModal(true);
       setAmount('');
       await fetchTokenBalance(); // refresh balance after redeem

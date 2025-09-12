@@ -820,7 +820,21 @@ app.post('/login', async (req, res) => {
 
 
 
-
+// Get token balance
+app.get('/token-balance', authenticateToken, async (req, res) => {
+    try {
+        const userAddress = account; // In real app, get from user's wallet
+        
+        const balance = await contract.methods.balanceOf(userAddress).call();
+        
+        res.json({
+            totalBalance: parseInt(balance)
+        });
+    } catch (err) {
+        console.error('Error get balance token:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ✅ Evaluate ESG score
 app.post('/evaluate', authenticateToken, async (req, res) => {
