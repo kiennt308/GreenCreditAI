@@ -1,7 +1,7 @@
 const { verifyToken, getUserById } = require('./userMethods');
 
 // JWT Authentication Middleware
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
@@ -18,7 +18,7 @@ const authenticateToken = (req, res, next) => {
         }
 
         req.user = {
-            id: user.id,
+            id: user.userId,
             username: user.username,
             email: user.email
         };
