@@ -1,20 +1,21 @@
 // TokenRedemption.jsx
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { toast, ToastContainer } from 'react-toastify';
 import { useTranslation } from 'react-i18next';
-import 'react-toastify/dist/ReactToastify.css';
+import CustomToast from './CustomToast';
+import '../css/CustomToast.css';
 
 const TokenRedemption = ({ user, token }) => {
   const { t } = useTranslation();
-  
+
   // Token redemption states
   const [amount, setAmount] = useState('');
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
-  
+  const [toast, setToast] = useState({ message: '', type: '', visible: false });
+
   // ESG evaluation states
   const [revenue, setRevenue] = useState('');
   const [emissions, setEmissions] = useState('');
@@ -70,20 +71,20 @@ const TokenRedemption = ({ user, token }) => {
       // Call ESG evaluation API
       const response = await axios.post(
         `${API_BASE}/evaluate`,
-        { 
-          revenue: revenueNum, 
-          emissions: emissionsNum 
+        {
+          revenue: revenueNum,
+          emissions: emissionsNum
         },
-        { 
-          headers: { 
+        {
+          headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
-          } 
+          }
         }
       );
 
       const { result, error } = response.data;
-      
+
       if (error) {
         setEsgError(error);
         return;
@@ -97,15 +98,15 @@ const TokenRedemption = ({ user, token }) => {
 
       setEsgScore(score);
       setShowEsgResult(true);
-      
+
       // Show success message
-      toast.success(t('tokens.esgEvaluationSuccess', { score: score.toFixed(2) }));
+      showToast({ message: t('tokens.esgEvaluationSuccess', { score: score.toFixed(2) }), type: 'success'});
 
     } catch (err) {
       console.error('ESG evaluation error:', err);
       const errorMsg = err?.response?.data?.error || err?.message || t('tokens.esgEvaluationError');
       setEsgError(errorMsg);
-      toast.error(errorMsg);
+      showToast({ message: errorMsg, type: 'error'});
     } finally {
       setEsgLoading(false);
     }
@@ -134,11 +135,11 @@ const TokenRedemption = ({ user, token }) => {
       const redeemAmount = parseInt(amount, 10) || 0;
 
       if (redeemAmount < 1) {
-        toast.error(t('tokens.invalidAmount'));
+        showToast({ message: t('tokens.invalidAmount'), type: 'error'});
         return;
       }
       if (redeemAmount > (balance || 0)) {
-        toast.error(t('tokens.insufficientTokens'));
+        showToast({ message: t('tokens.insufficientTokens'), type: 'error'});
         return;
       }
 
@@ -167,14 +168,27 @@ const TokenRedemption = ({ user, token }) => {
       setShowModal(true);
       setAmount('');
       await fetchTokenBalance(); // refresh balance after redeem
-      toast.success(data.message ?? t('tokens.redemptionSuccess'));
+      showToast({ message: data.message ?? t('tokens.redemptionSuccess'), type: 'success'});
     } catch (err) {
       console.error('Redeem error:', err);
       const msg = err?.response?.data?.error ?? err?.response?.data?.message ?? err.message ?? t('tokens.redemptionError');
-      toast.error(msg);
+      showToast({ message: msg, type: 'error'});
     } finally {
       setLoading(false);
     }
+  };
+
+  const showToast = ({ message, type }) => {
+    setToast({ message, type, visible: true });
+
+    // Thiết lập để ẩn toast sau 3 giây
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 3000);
+  };
+
+  const closeToast = () => {
+    setToast({ ...toast, visible: false });
   };
 
   const amountNum = parseInt(amount, 10) || 0;
@@ -183,10 +197,12 @@ const TokenRedemption = ({ user, token }) => {
 
   return (
     <div className="container mt-4">
-      <ToastContainer position="top-right" autoClose={3000} />
+      {toast.visible && (
+        <CustomToast message={toast.message} type={toast.type} onClose={closeToast} />
+      )}
       <div className="row justify-content-center">
         <div className="col-md-10">
-          
+
           {/* ESG Evaluation Section */}
           <div className="card mb-4">
             <div className="card-header">
@@ -257,7 +273,7 @@ const TokenRedemption = ({ user, token }) => {
                     <h5>{t('tokens.esgResult')}</h5>
                     <div className="row">
                       <div className="col-md-6">
-                        <p><strong>{t('tokens.esgScore')}:</strong> 
+                        <p><strong>{t('tokens.esgScore')}:</strong>
                           <span className={`badge ${isEligibleForTokens ? 'bg-success' : 'bg-warning'} ms-2`}>
                             {esgScore.toFixed(2)}
                           </span>
@@ -272,7 +288,7 @@ const TokenRedemption = ({ user, token }) => {
                             <p className="mb-0">{t('tokens.eligibleMessage')}</p>
                           </div>
                         ) : (
-                          <div className="text-warning">
+                          <div className="text-success">
                             <h6>📈 {t('tokens.improveEsg')}</h6>
                             <p className="mb-0">{t('tokens.improveMessage', { score: esgScore.toFixed(2) })}</p>
                           </div>
@@ -410,21 +426,23 @@ const TokenRedemption = ({ user, token }) => {
                   <h6>{t('tokens.transactionDetails')}:</h6>
                   <p><strong>{t('tokens.amountRedeemed')}:</strong> {(Number(redemptionResult.redeemAmount) || 0).toLocaleString()} GCT</p>
                   <p><strong>{t('tokens.newBalance')}:</strong> {(Number(redemptionResult.newBalance) || 0).toLocaleString()} GCT</p>
-                  <p>
-                    <strong>{t('tokens.transactionHash')}:</strong>{' '}
-                    {redemptionResult.txHash ? (
-                      <a
-                        href={`https://sepolia.etherscan.io/tx/${redemptionResult.txHash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="ms-2"
-                      >
-                        {redemptionResult.txHash}
-                      </a>
-                    ) : (
-                      <span className="ms-2">N/A</span>
-                    )}
-                  </p>
+                  <div className='transaction-hash-text'>
+                    <p>
+                      <strong>{t('tokens.transactionHash')}:</strong>{' '}
+                      {redemptionResult.txHash ? (
+                        <a
+                          href={`https://sepolia.etherscan.io/tx/${redemptionResult.txHash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ms-2"
+                        >
+                          {redemptionResult.txHash}
+                        </a>
+                      ) : (
+                        <span className="ms-2">N/A</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">

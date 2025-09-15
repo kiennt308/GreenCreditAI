@@ -1,15 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { toast } from 'react-toastify';
+import CustomToast from './CustomToast';
+import '../css/CustomToast.css';
 
 const AdminPanel = ({ user, token }) => {
     const [pendingRecords, setPendingRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [approving, setApproving] = useState(null);
+    const [toast, setToast] = useState({ message: '', type: '', visible: false });
 
     useEffect(() => {
         fetchPendingApprovals();
     }, []);
+
+    const showToast = ({ message, type }) => {
+        setToast({ message, type, visible: true });
+
+        // Thiết lập để ẩn toast sau 3 giây
+        setTimeout(() => {
+            setToast((prev) => ({ ...prev, visible: false }));
+        }, 3000);
+    };
+
+    const closeToast = () => {
+        setToast({ ...toast, visible: false });
+    };
 
     const fetchPendingApprovals = async () => {
         try {
@@ -19,9 +34,9 @@ const AdminPanel = ({ user, token }) => {
             setPendingRecords(response.data);
         } catch (err) {
             if (err.response?.status === 403) {
-                toast.error('Admin access required');
+                showToast({ message: 'Admin access required', type: 'error'});
             } else {
-                toast.error('Failed to fetch pending approvals');
+                showToast({ message: 'Failed to fetch pending approvals', type: 'error'});
             }
         } finally {
             setLoading(false);
@@ -32,17 +47,17 @@ const AdminPanel = ({ user, token }) => {
         setApproving(recordId);
         try {
             const response = await axios.post('http://localhost:3001/approve-credit', {
-                recordId: recordId,
+                recordId: recordId.toLocaleString(),
                 finalLoanAmount: finalLoanAmount,
                 adminNotes: adminNotes
             }, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
-            toast.success('Credit approved successfully!');
+            showToast({ message: 'Credit approved successfully!', type: 'success'});
             fetchPendingApprovals(); // Refresh the list
         } catch (err) {
-            toast.error(err.response?.data?.error || 'Approval failed');
+            showToast({ message: err.response?.data?.error || 'Approval failed', type: 'error'});
         } finally {
             setApproving(null);
         }
@@ -70,6 +85,9 @@ const AdminPanel = ({ user, token }) => {
 
     return (
         <div className="container mt-5">
+            {toast.visible && (
+                <CustomToast message={toast.message} type={toast.type} onClose={closeToast} />
+            )}
             <div className="row">
                 <div className="col-12">
                     <h2>🔐 Admin Panel - Credit Approvals</h2>
@@ -82,7 +100,7 @@ const AdminPanel = ({ user, token }) => {
                     <div className="card">
                         <div className="card-header d-flex justify-content-between align-items-center">
                             <h5 className="mb-0">Pending Approvals ({pendingRecords.length})</h5>
-                            <button 
+                            <button
                                 className="btn btn-outline-primary btn-sm"
                                 onClick={fetchPendingApprovals}
                             >
