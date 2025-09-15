@@ -1,0 +1,53 @@
+import os
+from src.utils.logger import logger
+import yfinance as yf
+import pandas as pd
+
+
+def trigger_yesg_ingestion(tickers: list[str]) -> pd.DataFrame:
+    results = []
+    for ticker in tickers:
+        try:
+            ticker_wrapped = yf.Ticker(ticker)
+            logger.info(f"[Ingestion] Processing ticker: {ticker}")
+            sustainability = ticker_wrapped.sustainability
+            if sustainability is None or sustainability.empty:
+                raise ValueError(f"No sustainability data found for {ticker}")
+            data = pd.DataFrame(sustainability).transpose()
+            data['ticker'] = ticker
+            results.append(data)
+        except Exception as e:
+            logger.error(f"[Ingestion] Error occurred for {ticker}: {e}")
+
+    if not results:
+        return pd.DataFrame()
+    logger.info(f"[Ingestion] Completed processing {len(tickers)} tickers.")
+    logger.info(f"[Ingestion] Results: {results}")
+    return pd.concat(results, ignore_index=True)
+
+def examine_data_quality(data: pd.DataFrame) -> None:
+    # Check for missing values
+    missing_values = data.isna().sum()
+    logger.info(f"Missing values per column: {missing_values.to_dict()}")
+    data.info()
+
+
+def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
+    # Example preprocessing: Fill NaN values with 0 and convert all columns to numeric
+    df = df.fillna(0)
+    for col in df.columns:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    return df
+
+
+if __name__ == "__main__":
+    popular_tickers = [
+        # Expert Picks
+        "INTC", "KLAC", "IEX", "FTNT", "LPLA", "LMT", "HCA", "JBHT", "AMAT", "AVGO",
+        # Best Performers
+        "PLTR", "GEV", "UAL", "TPR", "VST", "RCL", "AXON", "DASH", "JBL", "ORCL",
+        # Top S&P 500 Companies
+        "NVDA", "MSFT", "AAPL", "GOOGL", "AMZN", "META", "TSLA", "JPM", "WMT"
+    ]
+    data = trigger_yesg_ingestion(popular_tickers)
+    examine_data_quality(data)
