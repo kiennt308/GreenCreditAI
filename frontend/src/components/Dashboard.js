@@ -34,6 +34,12 @@ const Dashboard = ({ user, token }) => {
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('overview');
     const [isAdmin, setIsAdmin] = useState(false);
+    const [walletDetails, setWalletDetails] = useState(null);
+    const [walletLoading, setWalletLoading] = useState(false);
+    const [pendingTransactions, setPendingTransactions] = useState(new Set());
+    const [transferForm, setTransferForm] = useState({ recipient: '', amount: '' });
+    const [transferLoading, setTransferLoading] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
     
     // Create Record form states
     const [createRecordLoading, setCreateRecordLoading] = useState(false);
@@ -48,6 +54,7 @@ const Dashboard = ({ user, token }) => {
 
     useEffect(() => {
         fetchUserRecords();
+        fetchWalletDetails();
         // Check if user is admin
         setIsAdmin(user?.email === 'admin@greencredit.ai' || user?.username === 'admin');
     }, [user]);
@@ -68,6 +75,22 @@ const Dashboard = ({ user, token }) => {
         }
     };
 
+    const fetchWalletDetails = async () => {
+        setWalletLoading(true);
+        try {
+            const response = await axios.get('http://localhost:3001/wallet-details', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            setWalletDetails(response.data);
+        } catch (err) {
+            console.error('Error fetching wallet details:', err);
+        } finally {
+            setWalletLoading(false);
+        }
+    };
+
     const handleCreateRecord = async (e) => {
         e.preventDefault();
         setCreateRecordLoading(true);
@@ -82,7 +105,18 @@ const Dashboard = ({ user, token }) => {
                 }
             });
 
-            setCreateRecordSuccess(t('dashboard.recordCreatedSuccess'));
+            if (response.data.txHash) {
+                // Add to pending transactions
+                setPendingTransactions(prev => new Set([...prev, response.data.txHash]));
+                
+                setCreateRecordSuccess(t('dashboard.recordCreatedSuccess') + ' - ' + t('dashboard.pendingConfirmation'));
+                
+                // Start polling for confirmation
+                pollTransactionStatus(response.data.txHash);
+            } else {
+                setCreateRecordSuccess(t('dashboard.recordCreatedSuccess'));
+            }
+            
             setFormData({
                 esgScore: '',
                 creditAmount: '',
@@ -99,6 +133,91 @@ const Dashboard = ({ user, token }) => {
         } finally {
             setCreateRecordLoading(false);
         }
+    };
+
+    const pollTransactionStatus = async (txHash) => {
+        const maxAttempts = 30; // Poll for up to 5 minutes (10s intervals)
+        let attempts = 0;
+        
+        const poll = async () => {
+            try {
+                const response = await axios.get(`http://localhost:3001/transaction-status/${txHash}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (response.data.status === 'confirmed') {
+                    // Remove from pending transactions
+                    setPendingTransactions(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(txHash);
+                        return newSet;
+                    });
+                    
+                    // Refresh records and wallet details
+                    await fetchUserRecords();
+                    await fetchWalletDetails();
+                    
+                    console.log('Transaction confirmed:', txHash);
+                    return;
+                }
+                
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 10000); // Poll every 10 seconds
+                } else {
+                    console.log('Polling timeout for transaction:', txHash);
+                    // Remove from pending after timeout
+                    setPendingTransactions(prev => {
+                        const newSet = new Set(prev);
+                        newSet.delete(txHash);
+                        return newSet;
+                    });
+                }
+            } catch (err) {
+                console.error('Error polling transaction status:', err);
+                attempts++;
+                if (attempts < maxAttempts) {
+                    setTimeout(poll, 10000);
+                }
+            }
+        };
+        
+        // Start polling after 5 seconds
+        setTimeout(poll, 5000);
+    };
+
+    const handleTransferTokens = async (e) => {
+        e.preventDefault();
+        setTransferLoading(true);
+
+        try {
+            const response = await axios.post('http://localhost:3001/transfer-tokens', {
+                recipient: transferForm.recipient,
+                amount: transferForm.amount
+            }, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            setTransferForm({ recipient: '', amount: '' });
+            setShowTransferModal(false);
+            await fetchWalletDetails(); // Refresh wallet details
+            
+            // Show success message
+            setCreateRecordSuccess('Tokens transferred successfully!');
+            
+        } catch (err) {
+            setCreateRecordError(err.response?.data?.error || 'Transfer failed');
+        } finally {
+            setTransferLoading(false);
+        }
+    };
+
+    const handleTransferInputChange = (e) => {
+        const { name, value } = e.target;
+        setTransferForm(prev => ({
+            ...prev,
+            [name]: value
+        }));
     };
 
     const handleInputChange = (e) => {
@@ -178,6 +297,14 @@ const Dashboard = ({ user, token }) => {
                                 onClick={() => setActiveTab('overview')}
                             >
                                 📊 {t('navigation.overview')}
+                            </button>
+                        </li>
+                        <li className="nav-item">
+                            <button 
+                                className={`nav-link ${activeTab === 'wallet' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('wallet')}
+                            >
+                                💳 {t('navigation.wallet')}
                             </button>
                         </li>
                         <li className="nav-item">
@@ -276,9 +403,16 @@ const Dashboard = ({ user, token }) => {
                                                     <td>{record.esgScore}</td>
                                                     <td>{record.creditAmount}</td>
                                                     <td>
-                                                        <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
-                                                            {record.approved ? t('dashboard.approved') : t('dashboard.pending')}
-                                                        </span>
+                                                        {pendingTransactions.has(record.txHash) ? (
+                                                            <span className="badge bg-info d-flex align-items-center">
+                                                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                                {t('dashboard.confirming')}
+                                                            </span>
+                                                        ) : (
+                                                            <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
+                                                                {record.approved ? t('dashboard.approved') : t('dashboard.pending')}
+                                                            </span>
+                                                        )}
                                                     </td>
                                                     <td>{record.user}</td>
                                                 </tr>
@@ -292,6 +426,142 @@ const Dashboard = ({ user, token }) => {
                 </div>
             </div>
                 </>
+            )}
+
+            {activeTab === 'wallet' && (
+                <div className="row mt-4">
+                    <div className="col-12">
+                        <div className="card">
+                            <div className="card-header d-flex justify-content-between align-items-center">
+                                <h5>💳 {t('dashboard.walletDetails')}</h5>
+                                <div>
+                                    <button
+                                        className="btn btn-outline-success btn-sm me-2"
+                                        onClick={() => setShowTransferModal(true)}
+                                    >
+                                        💸 Transfer Tokens
+                                    </button>
+                                    <button
+                                        className="btn btn-outline-primary btn-sm"
+                                        onClick={fetchWalletDetails}
+                                        disabled={walletLoading}
+                                    >
+                                        {walletLoading ? (
+                                            <>
+                                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                {t('common.loading')}
+                                            </>
+                                        ) : (
+                                            '🔄 Refresh'
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="card-body">
+                                {walletDetails ? (
+                                    <>
+                                        {/* Wallet Balance Cards */}
+                                        <div className="row mb-4">
+                                            <div className="col-md-3">
+                                                <div className="card bg-primary text-white">
+                                                    <div className="card-body text-center">
+                                                        <h5 className="card-title">{t('dashboard.currentBalance')}</h5>
+                                                        <h3>{(walletDetails.balance || 0).toLocaleString()} GCT</h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <div className="card bg-success text-white">
+                                                    <div className="card-body text-center">
+                                                        <h5 className="card-title">{t('dashboard.totalRecords')}</h5>
+                                                        <h3>{walletDetails.totalRecords || 0}</h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <div className="card bg-info text-white">
+                                                    <div className="card-body text-center">
+                                                        <h5 className="card-title">{t('dashboard.totalTokens')}</h5>
+                                                        <h3>{(walletDetails.totalTokens || 0).toLocaleString()} GCT</h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="col-md-3">
+                                                <div className="card bg-warning text-white">
+                                                    <div className="card-body text-center">
+                                                        <h5 className="card-title">{t('dashboard.redeemedAmount')}</h5>
+                                                        <h3>{(walletDetails.redeemedAmount || 0).toLocaleString()} GCT</h3>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Transaction History */}
+                                        <div className="row">
+                                            <div className="col-12">
+                                                <h6>{t('dashboard.transactionHistory')}</h6>
+                                                {walletDetails.transactionHistory && walletDetails.transactionHistory.length > 0 ? (
+                                                    <div className="table-responsive">
+                                                        <table className="table table-striped">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th>{t('dashboard.type')}</th>
+                                                                    <th>{t('dashboard.amount')}</th>
+                                                                    <th>{t('dashboard.description')}</th>
+                                                                    <th>{t('dashboard.esgScore')}</th>
+                                                                    <th>{t('dashboard.status')}</th>
+                                                                    <th>{t('dashboard.date')}</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {walletDetails.transactionHistory.map((tx, index) => (
+                                                                    <tr key={index}>
+                                                                        <td>
+                                                                            <span className="badge bg-primary">
+                                                                                {tx.type === 'record_created' ? 'Record Created' : tx.type}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>{(tx.amount || 0).toLocaleString()} GCT</td>
+                                                                        <td>
+                                                                            <small>{tx.description || 'N/A'}</small>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span className={`badge ${tx.esgScore >= 70 ? 'bg-success' : 'bg-warning'}`}>
+                                                                                {tx.esgScore || 'N/A'}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <span className={`badge ${tx.status === 'approved' ? 'bg-success' : 'bg-warning'}`}>
+                                                                                {tx.status === 'approved' ? t('dashboard.approved') : t('dashboard.pending')}
+                                                                            </span>
+                                                                        </td>
+                                                                        <td>
+                                                                            <small>
+                                                                                {tx.timestamp ? new Date(tx.timestamp * 1000).toLocaleString() : 'N/A'}
+                                                                            </small>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                ) : (
+                                                    <p className="text-muted">{t('dashboard.noTransactions')}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-4">
+                                        <div className="spinner-border" role="status">
+                                            <span className="visually-hidden">{t('common.loading')}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {activeTab === 'tokens' && (
@@ -429,6 +699,84 @@ const Dashboard = ({ user, token }) => {
 
             {activeTab === 'admin' && isAdmin && (
                 <AdminPanel user={user} token={token} />
+            )}
+
+            {/* Transfer Tokens Modal */}
+            {showTransferModal && (
+                <div className="modal show d-block" tabIndex="-1" role="dialog">
+                    <div className="modal-dialog">
+                        <div className="modal-content">
+                            <div className="modal-header">
+                                <h5 className="modal-title">💸 Transfer Tokens</h5>
+                                <button type="button" className="btn-close" onClick={() => setShowTransferModal(false)}></button>
+                            </div>
+                            <div className="modal-body">
+                                <form onSubmit={handleTransferTokens}>
+                                    <div className="mb-3">
+                                        <label htmlFor="transferRecipient" className="form-label">
+                                            Recipient Address <span className="text-danger">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className="form-control"
+                                            id="transferRecipient"
+                                            name="recipient"
+                                            value={transferForm.recipient}
+                                            onChange={handleTransferInputChange}
+                                            placeholder="0x..."
+                                            required
+                                        />
+                                        <div className="form-text">Ethereum address to receive tokens</div>
+                                    </div>
+                                    <div className="mb-3">
+                                        <label htmlFor="transferAmount" className="form-label">
+                                            Amount (GCT) <span className="text-danger">*</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            className="form-control"
+                                            id="transferAmount"
+                                            name="amount"
+                                            value={transferForm.amount}
+                                            onChange={handleTransferInputChange}
+                                            min="1"
+                                            step="1"
+                                            placeholder="100"
+                                            required
+                                        />
+                                        <div className="form-text">
+                                            Available: {(walletDetails?.balance || 0).toLocaleString()} GCT
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                            <div className="modal-footer">
+                                <button 
+                                    type="button" 
+                                    className="btn btn-secondary" 
+                                    onClick={() => setShowTransferModal(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button 
+                                    type="button" 
+                                    className="btn btn-primary"
+                                    onClick={handleTransferTokens}
+                                    disabled={transferLoading || !transferForm.recipient || !transferForm.amount}
+                                >
+                                    {transferLoading ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                            Transferring...
+                                        </>
+                                    ) : (
+                                        '💸 Transfer Tokens'
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

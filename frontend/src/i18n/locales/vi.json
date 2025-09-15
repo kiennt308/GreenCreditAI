@@ -26,6 +26,7 @@
     "logout": "Đăng xuất",
     "evaluate": "Đánh giá",
     "overview": "Tổng quan",
+    "wallet": "Ví",
     "tokens": "Đổi Token",
     "progress": "Theo dõi tiến độ",
     "analytics": "Phân tích",
@@ -148,7 +149,8 @@
     "eligibleForTokens": "Đủ điều kiện nhận Token!",
     "eligibleMessage": "Điểm ESG của bạn đủ điều kiện nhận token GreenCredit! Bạn có thể đổi token để nhận lợi ích vay ngân hàng.",
     "improveEsg": "Cải thiện điểm ESG",
-    "improveMessage": "Điểm ESG hiện tại của bạn là {{score}}. Hãy tập trung cải thiện tính bền vững để đạt 80+ và đủ điều kiện nhận token."
+    "improveMessage": "Điểm ESG hiện tại của bạn là {{score}}. Hãy tập trung cải thiện tính bền vững để đạt 80+ và đủ điều kiện nhận token.",
+    "requestedLoanAmount": "Số tiền vay yêu cầu"
   },
   "dashboard": {
     "welcomeMessage": "Chào mừng, {{username}}!",
@@ -180,7 +182,20 @@
     "createRecordButton": "Tạo hồ sơ",
     "creatingRecord": "Đang tạo hồ sơ...",
     "recordCreatedSuccess": "Tạo hồ sơ thành công!",
-    "recordCreateError": "Không thể tạo hồ sơ. Vui lòng thử lại."
+    "recordCreateError": "Không thể tạo hồ sơ. Vui lòng thử lại.",
+    "pendingConfirmation": "Đang chờ xác nhận",
+    "confirming": "Đang xác nhận...",
+    "walletDetails": "Chi tiết ví",
+    "currentBalance": "Số dư hiện tại",
+    "totalRecords": "Tổng hồ sơ",
+    "totalTokens": "Tổng token",
+    "redeemedAmount": "Số lượng đã đổi",
+    "transactionHistory": "Lịch sử giao dịch",
+    "type": "Loại",
+    "amount": "Số lượng",
+    "description": "Mô tả",
+    "date": "Ngày",
+    "noTransactions": "Không tìm thấy giao dịch"
   },
   "progress": {
     "title": "Theo dõi tiến độ bền vững",

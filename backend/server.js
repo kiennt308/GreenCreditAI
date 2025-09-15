@@ -256,6 +256,24 @@ const abi = [
 		"inputs": [
 			{
 				"internalType": "address",
+				"name": "to",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "mint",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
 				"name": "owner",
 				"type": "address"
 			}
@@ -876,6 +894,53 @@ app.get('/token-balance', authenticateToken, async (req, res) => {
 	}
 });
 
+// Get wallet details (balance + transaction history)
+app.get('/wallet-details', authenticateToken, async (req, res) => {
+	try {
+		const userAddress = account; // In real app, get from user's wallet
+		
+		// Get current balance
+		const balance = await contract.methods.balanceOf(userAddress).call();
+		
+		// Get user stats from contract
+		const userStats = await contract.methods.getUserStats(userAddress).call();
+		
+		// Get transaction history (simplified - in production, use event logs)
+		const recordCount = await contract.methods.recordCount().call();
+		const transactionHistory = [];
+		
+		// Get records created by user
+		for (let i = 0; i < recordCount; i++) {
+			const record = await contract.methods.getRecord(i).call();
+			if (record.user.toLowerCase() === userAddress.toLowerCase()) {
+				transactionHistory.push({
+					type: 'record_created',
+					amount: parseInt(record.creditAmount),
+					timestamp: parseInt(record.timestamp),
+					description: record.projectDescription,
+					esgScore: parseInt(record.esgScore),
+					status: record.approved ? 'approved' : 'pending'
+				});
+			}
+		}
+		
+		// Sort by timestamp (newest first)
+		transactionHistory.sort((a, b) => b.timestamp - a.timestamp);
+		
+		res.json({
+			balance: parseInt(balance),
+			totalRecords: parseInt(userStats.totalRecords),
+			totalTokens: parseInt(userStats.totalTokens),
+			redeemedAmount: parseInt(userStats.redeemedAmount),
+			lastRedemption: parseInt(userStats.lastRedemption),
+			transactionHistory: transactionHistory.slice(0, 10) // Last 10 transactions
+		});
+	} catch (err) {
+		console.error('Error getting wallet details:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 // ✅ Evaluate ESG score
 app.post('/evaluate', authenticateToken, async (req, res) => {
 	try {
@@ -979,11 +1044,23 @@ app.post('/create-record', authenticateToken, async (req, res) => {
 			}
 		}
 
+		// Emit real-time notification for pending status
+		io.emit('recordCreated', {
+			recordId: recordId,
+			user: req.user.username,
+			esgScore: parseInt(esgScore),
+			creditAmount: parseInt(creditAmount),
+			status: 'pending',
+			txHash: receipt.transactionHash,
+			timestamp: Date.now()
+		});
+
 		res.json({
 			success: true,
 			recordId: recordId,
 			txHash: receipt.transactionHash,
-			message: 'Record created successfully',
+			status: 'pending',
+			message: 'Record created successfully and is pending confirmation',
 			data: {
 				esgScore: parseInt(esgScore),
 				creditAmount: parseInt(creditAmount),
@@ -1052,7 +1129,7 @@ app.get('/records/:id', authenticateToken, async (req, res) => {
 
 app.post('/redeem-token', authenticateToken, async (req, res) => {
 	try {
-		const { amount } = req.body;
+		const { amount, loanAmount, esgScore } = req.body;
 
 		if (!amount || amount <= 0) {
 			return res.status(400).json({ error: 'Valid amount is required' });
@@ -1084,20 +1161,23 @@ app.post('/redeem-token', authenticateToken, async (req, res) => {
 		const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
 		const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
 
-		// Simulate bank API call for interest discount
-		const discountResponse = await simulateBankAPI(amount);
+		// Calculate dynamic loan amount and discount based on ESG score and token balance
+		const discountResponse = await calculateDynamicLoanAmount(amount, loanAmount, esgScore, balance);
 
 		// Emit real-time notification
 		io.emit('tokenRedeemed', {
 			user: req.user.username,
 			amount: amount,
 			discount: discountResponse.discount,
+			loanAmount: discountResponse.loanAmount,
 			txHash: receipt.transactionHash
 		});
 
 		res.json({
 			success: true,
 			discount: discountResponse.discount,
+			loanAmount: discountResponse.loanAmount,
+			interestRate: discountResponse.interestRate,
 			message: "Tokens redeemed successfully!",
 			txHash: receipt.transactionHash,
 			newBalance: parseInt(balance) - parseInt(amount)
@@ -1114,6 +1194,59 @@ function calculateInterestRate(esgScore) {
 	if (esgScore >= 70) return 7.5; // Fair ESG
 	if (esgScore >= 60) return 8.0; // Below average
 	return 8.5; // Poor ESG
+}
+
+// Calculate dynamic loan amount based on ESG score, token balance, and requested amount
+async function calculateDynamicLoanAmount(tokenAmount, requestedLoanAmount, esgScore, tokenBalance) {
+	try {
+		const tokens = parseInt(tokenAmount);
+		const esg = parseInt(esgScore) || 70; // Default to 70 if not provided
+		const balance = parseInt(tokenBalance);
+		const requestedLoan = parseInt(requestedLoanAmount) || 500000000; // Default 500M VND
+
+		// Base loan amount calculation
+		let baseLoanAmount = Math.min(requestedLoan, 1000000000); // Cap at 1B VND
+
+		// ESG score multiplier (0.5 to 1.5)
+		const esgMultiplier = Math.max(0.5, Math.min(1.5, esg / 100));
+
+		// Token balance multiplier (0.8 to 1.2)
+		const balanceMultiplier = Math.max(0.8, Math.min(1.2, balance / 10000));
+
+		// Token amount multiplier (0.9 to 1.3)
+		const tokenMultiplier = Math.max(0.9, Math.min(1.3, tokens / 1000));
+
+		// Calculate final loan amount
+		const finalLoanAmount = Math.floor(baseLoanAmount * esgMultiplier * balanceMultiplier * tokenMultiplier);
+
+		// Calculate interest rate based on ESG score and token amount
+		let baseInterestRate = calculateInterestRate(esg);
+		
+		// Token discount (0% to 3% reduction)
+		const tokenDiscount = Math.min(3, Math.floor(tokens / 100) * 0.5);
+		const finalInterestRate = Math.max(4.5, baseInterestRate - tokenDiscount);
+
+		// Calculate discount percentage
+		const discountPercentage = Math.min(15, Math.floor(tokens / 100) + Math.floor(esg / 10));
+
+		return {
+			discount: `${discountPercentage}% interest reduction`,
+			loanAmount: finalLoanAmount.toLocaleString() + " VND",
+			interestRate: finalInterestRate.toFixed(1) + "%",
+			validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+			esgMultiplier: esgMultiplier.toFixed(2),
+			balanceMultiplier: balanceMultiplier.toFixed(2),
+			tokenMultiplier: tokenMultiplier.toFixed(2)
+		};
+	} catch (error) {
+		console.error('Error calculating dynamic loan amount:', error);
+		return {
+			discount: "2% interest reduction",
+			loanAmount: "500,000,000 VND",
+			interestRate: "8.5%",
+			validUntil: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+		};
+	}
 }
 
 // Simulate bank API call for interest discount
@@ -1489,6 +1622,43 @@ app.get('/pending-approvals', authenticateToken, async (req, res) => {
 	}
 });
 
+// Check transaction confirmation status
+app.get('/transaction-status/:txHash', authenticateToken, async (req, res) => {
+	try {
+		const { txHash } = req.params;
+		
+		// Get transaction receipt
+		const receipt = await web3.eth.getTransactionReceipt(txHash);
+		
+		if (!receipt) {
+			return res.json({
+				status: 'pending',
+				confirmations: 0,
+				message: 'Transaction not found or still pending'
+			});
+		}
+		
+		// Get current block number
+		const currentBlock = await web3.eth.getBlockNumber();
+		const confirmations = currentBlock - receipt.blockNumber;
+		
+		// Consider confirmed after 1 confirmation for testnet
+		const isConfirmed = confirmations >= 1;
+		
+		res.json({
+			status: isConfirmed ? 'confirmed' : 'pending',
+			confirmations: confirmations,
+			blockNumber: receipt.blockNumber,
+			gasUsed: receipt.gasUsed,
+			message: isConfirmed ? 'Transaction confirmed' : 'Transaction pending confirmation'
+		});
+		
+	} catch (err) {
+		console.error('Error checking transaction status:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
 app.get('/health', async (req, res) => {
 	try {
 		// Test blockchain connection
@@ -1513,6 +1683,122 @@ app.get('/health', async (req, res) => {
 			},
 			timestamp: new Date().toISOString()
 		});
+	}
+});
+
+// Mint tokens (admin only)
+app.post('/mint-tokens', authenticateToken, async (req, res) => {
+	try {
+		const { recipient, amount } = req.body;
+
+		// Check if user is admin
+		const isAdmin = req.user && (req.user.email === 'admin@greencredit.ai' || req.user.username === 'admin');
+		if (!isAdmin) {
+			return res.status(403).json({ error: 'Admin access required' });
+		}
+
+		// Validate input
+		if (!recipient || !amount || amount <= 0) {
+			return res.status(400).json({ error: 'Valid recipient address and amount are required' });
+		}
+
+		// Call smart contract to mint tokens
+		const tx = contract.methods.mint(recipient, amount);
+		const gas = await tx.estimateGas({ from: account });
+		const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+		const nonce = await web3.eth.getTransactionCount(account, 'pending');
+
+		const txData = {
+			from: account,
+			to: contractAddress,
+			data: tx.encodeABI(),
+			gas,
+			gasPrice,
+			nonce
+		};
+
+		const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
+		const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
+		// Emit real-time notification
+		io.emit('tokensMinted', {
+			recipient: recipient,
+			amount: amount,
+			txHash: receipt.transactionHash,
+			mintedBy: req.user.username,
+			timestamp: Date.now()
+		});
+
+		res.json({
+			success: true,
+			recipient: recipient,
+			amount: amount,
+			txHash: receipt.transactionHash,
+			message: 'Tokens minted successfully'
+		});
+
+	} catch (err) {
+		console.error('Error minting tokens:', err);
+		res.status(500).json({ error: err.message });
+	}
+});
+
+// Transfer tokens between users
+app.post('/transfer-tokens', authenticateToken, async (req, res) => {
+	try {
+		const { recipient, amount } = req.body;
+
+		// Validate input
+		if (!recipient || !amount || amount <= 0) {
+			return res.status(400).json({ error: 'Valid recipient address and amount are required' });
+		}
+
+		// Check user's token balance
+		const userAddress = account; // In real app, get from user's wallet
+		const balance = await contract.methods.balanceOf(userAddress).call();
+
+		if (parseInt(balance) < parseInt(amount)) {
+			return res.status(400).json({ error: 'Insufficient token balance' });
+		}
+
+		// Call smart contract to transfer tokens
+		const tx = contract.methods.transfer(recipient, amount);
+		const gas = await tx.estimateGas({ from: account });
+		const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
+		const nonce = await web3.eth.getTransactionCount(account, 'pending');
+
+		const txData = {
+			from: account,
+			to: contractAddress,
+			data: tx.encodeABI(),
+			gas,
+			gasPrice,
+			nonce
+		};
+
+		const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
+		const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+
+		// Emit real-time notification
+		io.emit('tokensTransferred', {
+			from: req.user.username,
+			to: recipient,
+			amount: amount,
+			txHash: receipt.transactionHash,
+			timestamp: Date.now()
+		});
+
+		res.json({
+			success: true,
+			recipient: recipient,
+			amount: amount,
+			txHash: receipt.transactionHash,
+			message: 'Tokens transferred successfully'
+		});
+
+	} catch (err) {
+		console.error('Error transferring tokens:', err);
+		res.status(500).json({ error: err.message });
 	}
 });
 

@@ -17,6 +17,8 @@ A comprehensive platform for green credit evaluation using AI for ESG scoring an
    - User records table with ESG scores and credit amounts
    - Interactive line charts for trend analysis
    - Responsive Bootstrap UI
+   - **NEW**: User wallet display with balance and transaction history
+   - **NEW**: Pending status tracking with transaction confirmation
 
 3. **Real-World Data Integration**
    - World Bank API integration for CO2 emissions data
@@ -31,11 +33,21 @@ A comprehensive platform for green credit evaluation using AI for ESG scoring an
 5. **Advanced APIs**
    - GET /user-records - Fetch user's blockchain records
    - GET /records/:id - Get specific record details
-   - POST /redeem-token - Token redemption system
+   - POST /redeem-token - **ENHANCED**: Dynamic loan amount calculation
    - GET /esg-analytics - Aggregate analytics data
    - POST /webhook - Etherscan webhook handler
+   - **NEW**: GET /wallet-details - User wallet information
+   - **NEW**: POST /mint-tokens - Admin token minting
+   - **NEW**: POST /transfer-tokens - User token transfers
+   - **NEW**: GET /transaction-status/:txHash - Transaction confirmation status
 
-6. **Security & Performance**
+6. **Token Management System**
+   - **NEW**: Admin token minting with safety caps
+   - **NEW**: User-to-user token transfers
+   - **NEW**: Dynamic loan amount calculation based on ESG score and token balance
+   - **NEW**: Real-time transaction status tracking
+
+7. **Security & Performance**
    - Rate limiting (100 requests/15 minutes)
    - Input validation and sanitization
    - Error handling and logging
@@ -140,6 +152,32 @@ GreenCreditAI/
    - Register a new account or login
    - Navigate to the dashboard to view your records
    - Use the evaluation form to submit ESG data
+
+## 🪙 Token Management Features
+
+### User Wallet
+- **Balance Display**: Real-time token balance with transaction history
+- **Transaction History**: Complete record of all token activities
+- **Transfer Functionality**: Send tokens to other users with confirmation modal
+- **Dynamic Updates**: Automatic balance refresh after transactions
+
+### Admin Token Minting
+- **Mint New Tokens**: Admin-only function to create new GreenCredit tokens
+- **Safety Caps**: Maximum supply limit to prevent inflation
+- **Recipient Selection**: Mint tokens to specific user addresses
+- **Real-time Notifications**: Instant updates when tokens are minted
+
+### Dynamic Loan Calculation
+- **ESG Score Integration**: Loan amounts adjust based on user's ESG performance
+- **Token Balance Multiplier**: Higher token balances increase loan eligibility
+- **Real-time Preview**: Live calculation of estimated loan amounts and interest rates
+- **Transparent Calculation**: Display of all multipliers and calculation factors
+
+### Transaction Status Tracking
+- **Pending Status**: Visual indicators for transactions awaiting confirmation
+- **Real-time Polling**: Automatic status updates every 10 seconds
+- **Confirmation Tracking**: Clear transition from pending to confirmed status
+- **Error Handling**: Timeout handling for failed transactions
 
 ## 📊 API Documentation
 
@@ -248,13 +286,99 @@ Get specific record by ID.
 ```
 
 #### POST /redeem-token
-Redeem tokens for benefits.
+Redeem tokens for benefits with dynamic loan calculation.
+
+**Request Body:**
+```json
+{
+  "amount": "number",
+  "loanAmount": "number (optional)",
+  "esgScore": "number (optional)"
+}
+```
 
 **Response:**
 ```json
 {
   "success": "boolean",
   "discount": "string",
+  "loanAmount": "string",
+  "interestRate": "string",
+  "message": "string",
+  "txHash": "string",
+  "newBalance": "number"
+}
+```
+
+#### GET /wallet-details
+Get user wallet information including balance and transaction history.
+
+**Response:**
+```json
+{
+  "balance": "number",
+  "totalRecords": "number",
+  "totalTokens": "number",
+  "redeemedAmount": "number",
+  "lastRedemption": "number",
+  "transactionHistory": "array"
+}
+```
+
+#### POST /mint-tokens (Admin Only)
+Mint new tokens to a specific address.
+
+**Request Body:**
+```json
+{
+  "recipient": "string",
+  "amount": "number"
+}
+```
+
+**Response:**
+```json
+{
+  "success": "boolean",
+  "recipient": "string",
+  "amount": "number",
+  "txHash": "string",
+  "message": "string"
+}
+```
+
+#### POST /transfer-tokens
+Transfer tokens to another user.
+
+**Request Body:**
+```json
+{
+  "recipient": "string",
+  "amount": "number"
+}
+```
+
+**Response:**
+```json
+{
+  "success": "boolean",
+  "recipient": "string",
+  "amount": "number",
+  "txHash": "string",
+  "message": "string"
+}
+```
+
+#### GET /transaction-status/:txHash
+Check transaction confirmation status.
+
+**Response:**
+```json
+{
+  "status": "string (pending/confirmed)",
+  "confirmations": "number",
+  "blockNumber": "number",
+  "gasUsed": "number",
   "message": "string"
 }
 ```

@@ -15,6 +15,11 @@ const TokenRedemption = ({ user, token }) => {
   const [showModal, setShowModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '', visible: false });
+  
+  // Dynamic loan amount states
+  const [loanAmount, setLoanAmount] = useState('');
+  const [currentEsgScore, setCurrentEsgScore] = useState(null);
+  const [loanPreview, setLoanPreview] = useState(null);
 
   // ESG evaluation states
   const [revenue, setRevenue] = useState('');
@@ -28,9 +33,19 @@ const TokenRedemption = ({ user, token }) => {
   const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:3001';
 
   useEffect(() => {
-    if (token) fetchTokenBalance();
+    if (token) {
+      fetchTokenBalance();
+      fetchUserEsgScore();
+    }
     // refresh if token changes
   }, [token]);
+
+  useEffect(() => {
+    // Update current ESG score when esgScore changes
+    if (esgScore !== null) {
+      setCurrentEsgScore(esgScore);
+    }
+  }, [esgScore]);
 
   const fetchTokenBalance = async () => {
     try {
@@ -42,6 +57,25 @@ const TokenRedemption = ({ user, token }) => {
       setBalance(Number.isFinite(total) ? total : 0);
     } catch (err) {
       console.error('Error fetching balance:', err);
+    }
+  };
+
+  const fetchUserEsgScore = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/user-records`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      
+      if (res.data && res.data.length > 0) {
+        // Get the latest ESG score from user records
+        const latestRecord = res.data[res.data.length - 1];
+        setCurrentEsgScore(latestRecord.esgScore || 70);
+      } else {
+        setCurrentEsgScore(70); // Default score
+      }
+    } catch (err) {
+      console.error('Error fetching user ESG score:', err);
+      setCurrentEsgScore(70); // Default score
     }
   };
 
@@ -133,6 +167,7 @@ const TokenRedemption = ({ user, token }) => {
 
     try {
       const redeemAmount = parseInt(amount, 10) || 0;
+      const requestedLoanAmount = parseInt(loanAmount, 10) || 500000000; // Default 500M VND
 
       if (redeemAmount < 1) {
         showToast({ message: t('tokens.invalidAmount'), type: 'error'});
@@ -143,10 +178,14 @@ const TokenRedemption = ({ user, token }) => {
         return;
       }
 
-      // Call backend
+      // Call backend with dynamic loan parameters
       const res = await axios.post(
         `${API_BASE}/redeem-token`,
-        { amount: String(redeemAmount) },
+        { 
+          amount: String(redeemAmount),
+          loanAmount: String(requestedLoanAmount),
+          esgScore: String(currentEsgScore || 70)
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
@@ -157,16 +196,22 @@ const TokenRedemption = ({ user, token }) => {
       // Normalize response into our result object (safe defaults)
       const result = {
         discount: data.discount ?? getTierForAmount(redeemAmount)?.discount ?? 'N/A',
+        loanAmount: data.loanAmount ?? '500,000,000 VND',
+        interestRate: data.interestRate ?? '8.5%',
         newBalance: newBalance,
         txHash: data.txHash ?? null,
         redeemAmount: redeemAmount,
         message: data.message ?? null,
+        esgMultiplier: data.esgMultiplier ?? '1.00',
+        balanceMultiplier: data.balanceMultiplier ?? '1.00',
+        tokenMultiplier: data.tokenMultiplier ?? '1.00'
       };
 
       setRedemptionResult(result);
       setBalance(newBalance);
       setShowModal(true);
       setAmount('');
+      setLoanAmount('');
       await fetchTokenBalance(); // refresh balance after redeem
       showToast({ message: data.message ?? t('tokens.redemptionSuccess'), type: 'success'});
     } catch (err) {
@@ -189,6 +234,44 @@ const TokenRedemption = ({ user, token }) => {
 
   const closeToast = () => {
     setToast({ ...toast, visible: false });
+  };
+
+  // Calculation functions for loan preview
+  const calculateEstimatedLoan = (tokenAmount, esgScore, tokenBalance) => {
+    const tokens = parseInt(tokenAmount) || 0;
+    const esg = parseInt(esgScore) || 70;
+    const balance = parseInt(tokenBalance) || 0;
+    const requestedLoan = parseInt(loanAmount) || 500000000;
+
+    const baseLoanAmount = Math.min(requestedLoan, 1000000000);
+    const esgMultiplier = Math.max(0.5, Math.min(1.5, esg / 100));
+    const balanceMultiplier = Math.max(0.8, Math.min(1.2, balance / 10000));
+    const tokenMultiplier = Math.max(0.9, Math.min(1.3, tokens / 1000));
+
+    const finalLoanAmount = Math.floor(baseLoanAmount * esgMultiplier * balanceMultiplier * tokenMultiplier);
+    return finalLoanAmount.toLocaleString();
+  };
+
+  const calculateEstimatedInterest = (esgScore, tokenAmount) => {
+    const esg = parseInt(esgScore) || 70;
+    const tokens = parseInt(tokenAmount) || 0;
+
+    let baseInterestRate = 8.5;
+    if (esg >= 90) baseInterestRate = 6.5;
+    else if (esg >= 80) baseInterestRate = 7.0;
+    else if (esg >= 70) baseInterestRate = 7.5;
+    else if (esg >= 60) baseInterestRate = 8.0;
+
+    const tokenDiscount = Math.min(3, Math.floor(tokens / 100) * 0.5);
+    const finalInterestRate = Math.max(4.5, baseInterestRate - tokenDiscount);
+    
+    return finalInterestRate.toFixed(1);
+  };
+
+  const calculateEstimatedDiscount = (tokenAmount, esgScore) => {
+    const tokens = parseInt(tokenAmount) || 0;
+    const esg = parseInt(esgScore) || 70;
+    return Math.min(15, Math.floor(tokens / 100) + Math.floor(esg / 10));
   };
 
   const amountNum = parseInt(amount, 10) || 0;
@@ -328,23 +411,60 @@ const TokenRedemption = ({ user, token }) => {
               </div>
 
               <form onSubmit={handleRedeem}>
-                <div className="mb-3">
-                  <label htmlFor="amount" className="form-label">{t('tokens.redeemAmount')}</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    id="amount"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    min="1"
-                    max={balance || 0}
-                    required
-                    disabled={(balance || 0) < 1}
-                  />
-                  <div className="form-text">
-                    {t('tokens.available')}: {(Number(balance) || 0).toLocaleString()} GCT
+                <div className="row">
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="amount" className="form-label">{t('tokens.redeemAmount')}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="amount"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      min="1"
+                      max={balance || 0}
+                      required
+                      disabled={(balance || 0) < 1}
+                    />
+                    <div className="form-text">
+                      {t('tokens.available')}: {(Number(balance) || 0).toLocaleString()} GCT
+                    </div>
+                  </div>
+                  <div className="col-md-6 mb-3">
+                    <label htmlFor="loanAmount" className="form-label">{t('tokens.requestedLoanAmount')}</label>
+                    <input
+                      type="number"
+                      className="form-control"
+                      id="loanAmount"
+                      value={loanAmount}
+                      onChange={(e) => setLoanAmount(e.target.value)}
+                      min="1000000"
+                      step="1000000"
+                      placeholder="500000000"
+                    />
+                    <div className="form-text">
+                      Requested loan amount in VND (optional)
+                    </div>
                   </div>
                 </div>
+
+                {/* Dynamic Loan Preview */}
+                {amount && currentEsgScore && (
+                  <div className="alert alert-info mb-3">
+                    <h6>📊 Dynamic Loan Preview</h6>
+                    <div className="row">
+                      <div className="col-md-6">
+                        <p><strong>ESG Score:</strong> {currentEsgScore}</p>
+                        <p><strong>Token Balance:</strong> {(balance || 0).toLocaleString()} GCT</p>
+                        <p><strong>Redeeming:</strong> {amount} GCT</p>
+                      </div>
+                      <div className="col-md-6">
+                        <p><strong>Estimated Loan:</strong> {calculateEstimatedLoan(amount, currentEsgScore, balance)} VND</p>
+                        <p><strong>Interest Rate:</strong> {calculateEstimatedInterest(currentEsgScore, amount)}%</p>
+                        <p><strong>Discount:</strong> {calculateEstimatedDiscount(amount, currentEsgScore)}%</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {amount ? (
                   currentTier ? (
@@ -417,9 +537,27 @@ const TokenRedemption = ({ user, token }) => {
                 <div className="alert alert-success">
                   <h6>{t('tokens.yourBenefits')}:</h6>
                   <p><strong>{t('tokens.discount')}:</strong> {redemptionResult.discount ?? 'N/A'}</p>
-                  <p><strong>{t('tokens.loanAmount')}:</strong> 500,000,000 VND</p>
-                  <p><strong>{t('tokens.interestRate')}:</strong> 8.5%</p>
+                  <p><strong>{t('tokens.loanAmount')}:</strong> {redemptionResult.loanAmount ?? '500,000,000 VND'}</p>
+                  <p><strong>{t('tokens.interestRate')}:</strong> {redemptionResult.interestRate ?? '8.5%'}</p>
                   <p><strong>{t('tokens.validUntil')}:</strong> {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
+                  
+                  {/* Dynamic calculation details */}
+                  {redemptionResult.esgMultiplier && (
+                    <div className="mt-3">
+                      <h6>📊 Calculation Details:</h6>
+                      <div className="row">
+                        <div className="col-md-4">
+                          <small><strong>ESG Multiplier:</strong> {redemptionResult.esgMultiplier}</small>
+                        </div>
+                        <div className="col-md-4">
+                          <small><strong>Balance Multiplier:</strong> {redemptionResult.balanceMultiplier}</small>
+                        </div>
+                        <div className="col-md-4">
+                          <small><strong>Token Multiplier:</strong> {redemptionResult.tokenMultiplier}</small>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="alert alert-info">

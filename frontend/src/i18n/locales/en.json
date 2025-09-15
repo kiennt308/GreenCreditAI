@@ -26,6 +26,7 @@
     "logout": "Logout",
     "evaluate": "Evaluate",
     "overview": "Overview",
+    "wallet": "Wallet",
     "tokens": "Token Redemption",
     "progress": "Progress Tracker",
     "analytics": "Analytics",
@@ -148,7 +149,8 @@
     "eligibleForTokens": "Eligible for Tokens!",
     "eligibleMessage": "Your ESG score qualifies you for GreenCredit tokens! You can now redeem tokens for bank loan benefits.",
     "improveEsg": "Improve ESG Score",
-    "improveMessage": "Your current ESG score is {{score}}. Focus on sustainability improvements to reach 80+ and become eligible for tokens."
+    "improveMessage": "Your current ESG score is {{score}}. Focus on sustainability improvements to reach 80+ and become eligible for tokens.",
+    "requestedLoanAmount": "Requested Loan Amount"
   },
   "dashboard": {
     "welcomeMessage": "Welcome, {{username}}!",
@@ -180,7 +182,20 @@
     "createRecordButton": "Create Record",
     "creatingRecord": "Creating Record...",
     "recordCreatedSuccess": "Record created successfully!",
-    "recordCreateError": "Failed to create record. Please try again."
+    "recordCreateError": "Failed to create record. Please try again.",
+    "pendingConfirmation": "Pending confirmation",
+    "confirming": "Confirming...",
+    "walletDetails": "Wallet Details",
+    "currentBalance": "Current Balance",
+    "totalRecords": "Total Records",
+    "totalTokens": "Total Tokens",
+    "redeemedAmount": "Redeemed Amount",
+    "transactionHistory": "Transaction History",
+    "type": "Type",
+    "amount": "Amount",
+    "description": "Description",
+    "date": "Date",
+    "noTransactions": "No transactions found"
   },
   "progress": {
     "title": "Sustainability Progress Tracker",
