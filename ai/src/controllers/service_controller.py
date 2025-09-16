@@ -2,5 +2,5 @@ from .app import App
 
 PING = 'ping'
 
-def ping(self: App):
+def ping():
     return {'msg': 'ping'}, 200

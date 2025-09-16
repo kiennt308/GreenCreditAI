@@ -5,5 +5,6 @@ from src.controllers.model_controller import *
 APIS = [
     (ROUTE_PING, ping),
     (ROUTE_TRAIN_ESG_OVERALL, train_model_esg_overall),
+    (ROUTE_PREDICT_ESG_OVERALL, predict_esg_overall),
     (ROUTE_TRAIN_MARKET_CAP, train_model_market_cap),
 ]

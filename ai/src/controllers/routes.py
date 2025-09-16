@@ -18,3 +18,9 @@ ROUTE_TRAIN_MARKET_CAP = Route(
     path='/train/market_cap',
     method=METHOD_POST
 )
+
+ROUTE_PREDICT_ESG_OVERALL = Route(
+    name='predict_esg_overall',
+    path='/predict/esg_overall',
+    method=METHOD_POST
+)
