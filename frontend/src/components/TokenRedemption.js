@@ -22,8 +22,12 @@ const TokenRedemption = ({ user, token }) => {
   const [loanPreview, setLoanPreview] = useState(null);
 
   // ESG evaluation states
+  // const [industry, setIndustry] = useState('');
+  // const [region, setRegion] = useState('');
   const [revenue, setRevenue] = useState('');
   const [emissions, setEmissions] = useState('');
+  // const [waterUsage, setWaterUsage] = useState('');
+  // const [energyConsumption, setEnergyConsumption] = useState('');
   const [esgScore, setEsgScore] = useState(null);
   const [esgLoading, setEsgLoading] = useState(false);
   const [esgError, setEsgError] = useState('');

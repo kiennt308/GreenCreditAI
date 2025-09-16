@@ -946,42 +946,38 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
 	try {
 		const { revenue, emissions } = req.body;
 
-		// Debug log
-		console.log("DEBUG /evaluate body:", req.body);
-
 		// Validate input
 		if (revenue === undefined || emissions === undefined) {
 			return res.status(400).json({
 				error: "Missing required fields: revenue and emissions"
 			});
 		}
-
-		// Ensure numeric values
-		const revenueStr = revenue.toString();
-		const emissionsStr = emissions.toString();
-
-		// Run Python model (cross-platform compatible)
-		const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
-		const pyProcess = spawnSync(pythonCommand, ['ai_model.py', revenueStr, emissionsStr], {
-			cwd: path.join(__dirname, '../ai'),
-			encoding: 'utf-8'
-		});
-
-		if (pyProcess.error) {
-			console.error("Python error:", pyProcess.error);
-			return res.status(500).json({ error: pyProcess.error.message });
+		// const api = "https://api.exchangerate-api.com/v4/latest/USD";
+		// const response = await axios.get(api);
+		const usdToVndRate = 26315.7895;
+		console.log(`Current USD to VND exchange rate: ${usdToVndRate}`);
+		const revenueInUSD = revenue / usdToVndRate;
+		const esgScore = await axios.post(
+		"http://ai:5000//predict/esg_overall",
+		{
+			Industry: "Technology",
+			Region: "Asia",
+			Year: 2024,
+			Revenue: revenueInUSD,
+			ProfitMargin: 12.5,
+			MarketCap: 20000000,
+			GrowthRate: 5.0,
+			CarbonEmissions: emissions,
+			WaterUsage: 300,
+			EnergyConsumption: 1500,
 		}
-
-		// Clean outputs
-		const stdout = (pyProcess.stdout || "").trim();
-		const stderr = (pyProcess.stderr || "").trim();
-
-		// Return result
+		);
+		
+		console.log("ESG Score prediction:", esgScore.data);
 		return res.json({
-			result: stdout,
-			error: stderr
-		});
-
+			result: esgScore.data.prediction,
+			error: null
+    	});
 	} catch (err) {
 		console.error("Error in /evaluate:", err);
 		return res.status(500).json({ error: err.message });
