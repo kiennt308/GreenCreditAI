@@ -4,15 +4,20 @@ import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useTranslation } from 'react-i18next';
 // import io from 'socket.io-client';
 
+import './i18n';
+import { LanguageProvider } from './contexts/LanguageContext';
 import Login from './components/Login';
 import Register from './components/Register';
 import Dashboard from './components/Dashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 import EvaluationForm from './components/EvaluationForm';
+import LanguageSwitcher from './components/LanguageSwitcher';
 
-function App() {
+const AppContent = () => {
+  const { t } = useTranslation();
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -57,19 +62,23 @@ function App() {
       <div className="App">
         <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
           <div className="container">
+            <img src="./GCT_logo.png" alt="Logo" style={{ width: '60px', height: '60px', marginRight: '10px' }} />
             <a className="navbar-brand" href="/">GreenCredit AI</a>
-            <div className="navbar-nav ms-auto">
+            <div className="navbar-nav ms-auto d-flex align-items-center">
+              <div className="me-3">
+                <LanguageSwitcher />
+              </div>
               {isAuthenticated ? (
                 <>
-                  <span className="navbar-text me-3">Welcome, {user?.username || 'User'}</span>
+                  <span className="navbar-text me-3">{t('auth.welcomeMessage', { username: user?.username || 'User' })}</span>
                   <button className="btn btn-outline-light" onClick={handleLogout}>
-                    Logout
+                    {t('auth.logoutButton')}
                   </button>
                 </>
               ) : (
                 <>
-                  <a className="nav-link" href="/login">Login</a>
-                  <a className="nav-link" href="/register">Register</a>
+                  <a className="nav-link" href="/login">{t('navigation.login')}</a>
+                  <a className="nav-link" href="/register">{t('navigation.register')}</a>
                 </>
               )}
             </div>
@@ -111,6 +120,14 @@ function App() {
         />
       </div>
     </Router>
+  );
+};
+
+function App() {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 }
 

@@ -38,6 +38,15 @@ contract GreenCredit is ERC20, Ownable {
         totalTokensMinted += amount;
     }
 
+    // Mint new tokens (admin only, with safety cap)
+    function mint(address to, uint256 amount) external onlyOwner {
+        require(amount > 0, "Amount must be greater than 0");
+        require(totalTokensMinted + amount <= 1000000 * 10**18, "Minting would exceed maximum supply");
+        
+        _mint(to, amount);
+        totalTokensMinted += amount;
+    }
+
     function addRecord(
         uint256 _esgScore,
         uint256 _creditAmount,

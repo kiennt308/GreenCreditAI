@@ -1,0 +1,15 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: esg-model
+  namespace: kubeflow   # adjust to your user namespace
+spec:
+  predictor:
+    sklearn:
+      storageUri: "s3://models/esg"
+      resources:
+        requests:
+          cpu: 1
+          memory: 1Gi
+
+

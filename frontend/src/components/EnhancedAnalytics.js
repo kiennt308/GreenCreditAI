@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Line, Bar } from 'react-chartjs-2';
+import { useTranslation } from 'react-i18next';
 import {
     Chart as ChartJS,
     CategoryScale,
@@ -25,6 +26,7 @@ ChartJS.register(
 );
 
 const EnhancedAnalytics = ({ user, token }) => {
+    const { t } = useTranslation();
     const [analyticsData, setAnalyticsData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -54,7 +56,7 @@ const EnhancedAnalytics = ({ user, token }) => {
             });
             setAnalyticsData(response.data);
         } catch (err) {
-            setError('Failed to fetch analytics data');
+            setError(t('analytics.fetchError'));
             console.error('Error fetching analytics data:', err);
         } finally {
             setLoading(false);
@@ -72,7 +74,7 @@ const EnhancedAnalytics = ({ user, token }) => {
         if (!analyticsData || !analyticsData.records) return;
 
         const csvContent = [
-            ['ID', 'ESG Score', 'Credit Amount', 'Loan Amount', 'Sector', 'Project Description', 'Approved', 'Date'],
+            [t('analytics.csvHeaders.id'), t('analytics.csvHeaders.esgScore'), t('analytics.csvHeaders.creditAmount'), t('analytics.csvHeaders.loanAmount'), t('analytics.csvHeaders.sector'), t('analytics.csvHeaders.projectDescription'), t('analytics.csvHeaders.approved'), t('analytics.csvHeaders.date')],
             ...analyticsData.records.map(record => [
                 record.id,
                 record.esgScore,
@@ -80,7 +82,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                 record.loanAmount,
                 record.sector,
                 record.projectDescription,
-                record.approved ? 'Yes' : 'No',
+                record.approved ? t('common.yes') : t('common.no'),
                 new Date(record.timestamp * 1000).toLocaleDateString()
             ])
         ].map(row => row.join(',')).join('\n');
@@ -99,7 +101,7 @@ const EnhancedAnalytics = ({ user, token }) => {
             <div className="container mt-5">
                 <div className="text-center">
                     <div className="spinner-border" role="status">
-                        <span className="visually-hidden">Loading...</span>
+                        <span className="visually-hidden">{t('common.loading')}</span>
                     </div>
                 </div>
             </div>
@@ -120,8 +122,8 @@ const EnhancedAnalytics = ({ user, token }) => {
         return (
             <div className="container mt-5">
                 <div className="text-center">
-                    <h4>No Analytics Data Available</h4>
-                    <p className="text-muted">Submit some evaluations to see analytics.</p>
+                    <h4>{t('analytics.noData')}</h4>
+                    <p className="text-muted">{t('analytics.submitEvaluations')}</p>
                 </div>
             </div>
         );
@@ -131,14 +133,14 @@ const EnhancedAnalytics = ({ user, token }) => {
         labels: analyticsData.timeSeriesData.map(d => d.month),
         datasets: [
             {
-                label: 'Average ESG Score',
+                label: t('analytics.averageESGScore'),
                 data: analyticsData.timeSeriesData.map(d => d.averageESG),
                 borderColor: 'rgb(75, 192, 192)',
                 backgroundColor: 'rgba(75, 192, 192, 0.2)',
                 tension: 0.1
             },
             {
-                label: 'Average Credit Amount',
+                label: t('analytics.averageCreditAmount'),
                 data: analyticsData.timeSeriesData.map(d => d.averageCredit),
                 borderColor: 'rgb(255, 99, 132)',
                 backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -151,7 +153,7 @@ const EnhancedAnalytics = ({ user, token }) => {
         labels: Object.keys(analyticsData.sectorAnalytics),
         datasets: [
             {
-                label: 'Average ESG Score by Sector',
+                label: t('analytics.averageESGScoreBySector'),
                 data: Object.values(analyticsData.sectorAnalytics).map(s => s.averageESG),
                 backgroundColor: [
                     'rgba(255, 99, 132, 0.8)',
@@ -173,7 +175,7 @@ const EnhancedAnalytics = ({ user, token }) => {
             },
             title: {
                 display: true,
-                text: 'ESG Analytics Over Time'
+                text: t('analytics.chartTitle')
             }
         }
     };
@@ -186,7 +188,7 @@ const EnhancedAnalytics = ({ user, token }) => {
             },
             title: {
                 display: true,
-                text: 'ESG Scores by Sector'
+                text: t('analytics.sectorChartTitle')
             }
         },
         scales: {
@@ -201,8 +203,8 @@ const EnhancedAnalytics = ({ user, token }) => {
         <div className="container mt-5">
             <div className="row">
                 <div className="col-12">
-                    <h2>📊 Enhanced ESG Analytics</h2>
-                    <p className="text-muted">Comprehensive analytics with filtering and export capabilities</p>
+                    <h2>📊 {t('analytics.title')}</h2>
+                    <p className="text-muted">{t('analytics.subtitle')}</p>
                 </div>
             </div>
 
@@ -211,28 +213,28 @@ const EnhancedAnalytics = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>🔍 Filters</h5>
+                            <h5>🔍 {t('analytics.filters')}</h5>
                         </div>
                         <div className="card-body">
                             <div className="row">
                                 <div className="col-md-3">
-                                    <label className="form-label">Sector</label>
+                                    <label className="form-label">{t('analytics.sector')}</label>
                                     <select
                                         className="form-select"
                                         value={filters.sector}
                                         onChange={(e) => handleFilterChange('sector', e.target.value)}
                                     >
-                                        <option value="all">All Sectors</option>
-                                        <option value="Agriculture">Agriculture</option>
-                                        <option value="Energy">Energy</option>
-                                        <option value="Manufacturing">Manufacturing</option>
-                                        <option value="Transportation">Transportation</option>
-                                        <option value="Construction">Construction</option>
-                                        <option value="Other">Other</option>
+                                        <option value="all">{t('analytics.allSectors')}</option>
+                                        <option value="Agriculture">{t('analytics.agriculture')}</option>
+                                        <option value="Energy">{t('analytics.energy')}</option>
+                                        <option value="Manufacturing">{t('analytics.manufacturing')}</option>
+                                        <option value="Transportation">{t('analytics.transportation')}</option>
+                                        <option value="Construction">{t('analytics.construction')}</option>
+                                        <option value="Other">{t('analytics.other')}</option>
                                     </select>
                                 </div>
                                 <div className="col-md-2">
-                                    <label className="form-label">Min ESG Score</label>
+                                    <label className="form-label">{t('analytics.minESGScore')}</label>
                                     <input
                                         type="number"
                                         className="form-control"
@@ -243,7 +245,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                                     />
                                 </div>
                                 <div className="col-md-2">
-                                    <label className="form-label">Max ESG Score</label>
+                                    <label className="form-label">{t('analytics.maxESGScore')}</label>
                                     <input
                                         type="number"
                                         className="form-control"
@@ -254,7 +256,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                                     />
                                 </div>
                                 <div className="col-md-2">
-                                    <label className="form-label">Start Date</label>
+                                    <label className="form-label">{t('analytics.startDate')}</label>
                                     <input
                                         type="date"
                                         className="form-control"
@@ -263,7 +265,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                                     />
                                 </div>
                                 <div className="col-md-2">
-                                    <label className="form-label">End Date</label>
+                                    <label className="form-label">{t('analytics.endDate')}</label>
                                     <input
                                         type="date"
                                         className="form-control"
@@ -283,7 +285,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                                             maxScore: ''
                                         })}
                                     >
-                                        Clear
+                                        {t('analytics.clear')}
                                     </button>
                                 </div>
                             </div>
@@ -298,7 +300,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-primary">{analyticsData.totalRecords}</h3>
-                            <small>Total Records</small>
+                            <small>{t('analytics.totalRecords')}</small>
                         </div>
                     </div>
                 </div>
@@ -306,7 +308,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-success">{analyticsData.averageESGScore}</h3>
-                            <small>Average ESG Score</small>
+                            <small>{t('analytics.averageESGScore')}</small>
                         </div>
                     </div>
                 </div>
@@ -314,7 +316,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-info">{analyticsData.averageCreditAmount.toLocaleString()}</h3>
-                            <small>Average Credit Amount</small>
+                            <small>{t('analytics.averageCreditAmount')}</small>
                         </div>
                     </div>
                 </div>
@@ -322,7 +324,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                     <div className="card bg-light">
                         <div className="card-body text-center">
                             <h3 className="text-warning">{Object.keys(analyticsData.sectorAnalytics).length}</h3>
-                            <small>Sectors Covered</small>
+                            <small>{t('analytics.sectorsCovered')}</small>
                         </div>
                     </div>
                 </div>
@@ -333,7 +335,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                 <div className="col-md-8">
                     <div className="card">
                         <div className="card-header">
-                            <h5>Time Series Analysis</h5>
+                            <h5>{t('analytics.timeSeriesAnalysis')}</h5>
                         </div>
                         <div className="card-body">
                             <Line data={timeSeriesChartData} options={chartOptions} />
@@ -343,7 +345,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                 <div className="col-md-4">
                     <div className="card">
                         <div className="card-header">
-                            <h5>Sector Analysis</h5>
+                            <h5>{t('analytics.sectorAnalysis')}</h5>
                         </div>
                         <div className="card-body">
                             <Bar data={sectorChartData} options={barChartOptions} />
@@ -357,9 +359,9 @@ const EnhancedAnalytics = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header d-flex justify-content-between align-items-center">
-                            <h5>Sector Breakdown</h5>
+                            <h5>{t('analytics.sectorBreakdown')}</h5>
                             <button className="btn btn-success" onClick={exportToCSV}>
-                                📥 Export CSV
+                                📥 {t('analytics.exportCSV')}
                             </button>
                         </div>
                         <div className="card-body">
@@ -367,11 +369,11 @@ const EnhancedAnalytics = ({ user, token }) => {
                                 <table className="table table-striped">
                                     <thead>
                                         <tr>
-                                            <th>Sector</th>
-                                            <th>Records</th>
-                                            <th>Avg ESG Score</th>
-                                            <th>Avg Credit Amount</th>
-                                            <th>Total Credit</th>
+                                            <th>{t('analytics.sector')}</th>
+                                            <th>{t('analytics.records')}</th>
+                                            <th>{t('analytics.avgESGScore')}</th>
+                                            <th>{t('analytics.avgCreditAmount')}</th>
+                                            <th>{t('analytics.totalCredit')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -401,20 +403,20 @@ const EnhancedAnalytics = ({ user, token }) => {
                 <div className="col-12">
                     <div className="card">
                         <div className="card-header">
-                            <h5>Detailed Records</h5>
+                            <h5>{t('analytics.detailedRecords')}</h5>
                         </div>
                         <div className="card-body">
                             <div className="table-responsive">
                                 <table className="table table-striped">
                                     <thead>
                                         <tr>
-                                            <th>ID</th>
-                                            <th>ESG Score</th>
-                                            <th>Sector</th>
-                                            <th>Project</th>
-                                            <th>Credit Amount</th>
-                                            <th>Status</th>
-                                            <th>Date</th>
+                                            <th>{t('analytics.csvHeaders.id')}</th>
+                                            <th>{t('analytics.csvHeaders.esgScore')}</th>
+                                            <th>{t('analytics.csvHeaders.sector')}</th>
+                                            <th>{t('analytics.csvHeaders.projectDescription')}</th>
+                                            <th>{t('analytics.csvHeaders.creditAmount')}</th>
+                                            <th>{t('analytics.csvHeaders.approved')}</th>
+                                            <th>{t('analytics.csvHeaders.date')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -435,7 +437,7 @@ const EnhancedAnalytics = ({ user, token }) => {
                                                 <td>{record.creditAmount.toLocaleString()}</td>
                                                 <td>
                                                     <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
-                                                        {record.approved ? 'Approved' : 'Pending'}
+                                                        {record.approved ? t('analytics.csvHeaders.approved') : t('progress.pending')}
                                                     </span>
                                                 </td>
                                                 <td>

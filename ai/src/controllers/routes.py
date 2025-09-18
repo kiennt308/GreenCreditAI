@@ -6,3 +6,21 @@ ROUTE_PING = Route(
     path='/ping',
     method=METHOD_GET
 )
+
+ROUTE_TRAIN_ESG_OVERALL = Route(
+    name='train_esg_overall',
+    path='/train/esg_overall',
+    method=METHOD_POST
+)
+
+ROUTE_TRAIN_MARKET_CAP = Route(
+    name='train_market_cap',
+    path='/train/market_cap',
+    method=METHOD_POST
+)
+
+ROUTE_PREDICT_ESG_OVERALL = Route(
+    name='predict_esg_overall',
+    path='/predict/esg_overall',
+    method=METHOD_POST
+)

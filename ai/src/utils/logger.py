@@ -1,6 +1,10 @@
 import logging
 # import json
-from flask_log_request_id import RequestIDLogFilter
+# The line `from flask_log_request_id import RequestIDLogFilter` is importing the `RequestIDLogFilter`
+# class from the `flask_log_request_id` module. This class is likely used to filter log messages based
+# on a request ID, which can be helpful for tracking logs related to a specific request in a Flask
+# application.
+# from flask_log_request_id import RequestIDLogFilter
 
 
 class LogColors:
@@ -31,7 +35,7 @@ class ColoredFormatter(logging.Formatter):
 
         # Create a colorized log message
         log_msg = (
-            f"{LogColors.BLACK} [{record.request_id}] {LogColors.RESET} - "
+            # f"{LogColors.BLACK} [{record.request_id}] {LogColors.RESET} - "
             f"[{record.asctime}] {LogColors.RESET} - "
             f"{LogColors.CYAN} [{record.levelname}] {LogColors.RESET} - "
             f"[{record.filename}:{record.lineno}] \n"
@@ -49,5 +53,5 @@ formatter = ColoredFormatter(
 handler = logging.StreamHandler()
 logger.addHandler(handler)
 
-handler.addFilter(RequestIDLogFilter())
+# handler.addFilter(RequestIDLogFilter())
 handler.setFormatter(formatter)
