@@ -24,38 +24,38 @@ require('dotenv').config();
 const mongoose = require('mongoose');
 
 (async () => {
-    try {
-        // Kết nối đến MongoDB
-        await mongoose.connect(`${process.env.MONGODB_URI}`, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true
-        });
-        console.log('Connected to MongoDB');
+	try {
+		// Kết nối đến MongoDB
+		await mongoose.connect(`${process.env.MONGODB_URI}`, {
+			// useNewUrlParser: true,
+			// useUnifiedTopology: true
+		});
+		console.log('🚀 ~ Connected to MongoDB');
 
-        // Tạo người dùng admin đầu tiên
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash('admin123', saltRounds);
+		// Tạo người dùng admin đầu tiên
+		const saltRounds = 10;
+		const hashedPassword = await bcrypt.hash('admin123', saltRounds);
 
-        const existingAdmin = await User.findOne({ username: 'admin' });
-        if (!existingAdmin) {
-            const user = new User({
-                username: 'admin',
-                email: 'admin@greencredit.ai',
-                password: hashedPassword,
-                address: '0xD55420276e2C9E6000f922fA658D222b34E989f5',
-                esgScore: 0,
-                creditAmount: 0,
-                createdAt: new Date()
-            });
+		const existingAdmin = await User.findOne({ username: 'admin' });
+		if (!existingAdmin) {
+			const user = new User({
+				username: 'admin',
+				email: 'admin@greencredit.ai',
+				password: hashedPassword,
+				address: '0xD55420276e2C9E6000f922fA658D222b34E989f5',
+				esgScore: 0,
+				creditAmount: 0,
+				createdAt: new Date()
+			});
 
-            await user.save(); // Sử dụng await để đảm bảo lưu thành công
-            console.log('Admin user created successfully');
-        } else {
-            console.log('Admin user already exists');
-        }
-    } catch (error) {
-        console.error('MongoDB connection error:', error);
-    }
+			await user.save(); // Sử dụng await để đảm bảo lưu thành công
+			console.log('Admin user created successfully');
+		} else {
+			console.log('Admin user already exists');
+		}
+	} catch (error) {
+		console.error('🚀 ~ MongoDB connection error:', error);
+	}
 })();
 
 const cors = require('cors');
@@ -76,7 +76,7 @@ const { register, login } = require('./userMethods');
 const { authenticateToken } = require('./authMiddleware');
 
 // Thay bằng Infura key (tạo miễn phí tại https://app.infura.io/register)
-const web3 = new Web3('https://sepolia.infura.io/v3/163d705cc5c14d53b5abc349908cb2c9');
+const web3 = new Web3('https://sepolia.infura.io/v3/4e231aa1b37e4ab2bc970ded3005d153');
 const abi = [
 	{
 		"inputs": [
@@ -876,14 +876,12 @@ app.post('/login', async (req, res) => {
 	}
 });
 
-
-
 // Get token balance
-app.get('/token-balance', authenticateToken, async (req, res) => {
+app.post('/token-balance', authenticateToken, async (req, res) => {
 	try {
-		const userAddress = account; // In real app, get from user's wallet
+		const { walletAddress } = req.body;
 
-		const balance = await contract.methods.balanceOf(userAddress).call();
+		const balance = await contract.methods.balanceOf(walletAddress).call();
 
 		res.json({
 			totalBalance: parseInt(balance)
@@ -895,24 +893,24 @@ app.get('/token-balance', authenticateToken, async (req, res) => {
 });
 
 // Get wallet details (balance + transaction history)
-app.get('/wallet-details', authenticateToken, async (req, res) => {
+app.post('/wallet-details', authenticateToken, async (req, res) => {
 	try {
-		const userAddress = account; // In real app, get from user's wallet
-		
+		const { walletAddress } = req.body;
+
 		// Get current balance
-		const balance = await contract.methods.balanceOf(userAddress).call();
-		
+		const balance = await contract.methods.balanceOf(walletAddress).call();
+
 		// Get user stats from contract
-		const userStats = await contract.methods.getUserStats(userAddress).call();
-		
+		const userStats = await contract.methods.getUserStats(walletAddress).call();
+
 		// Get transaction history (simplified - in production, use event logs)
 		const recordCount = await contract.methods.recordCount().call();
 		const transactionHistory = [];
-		
+
 		// Get records created by user
 		for (let i = 0; i < recordCount; i++) {
 			const record = await contract.methods.getRecord(i).call();
-			if (record.user.toLowerCase() === userAddress.toLowerCase()) {
+			if (record.user.toLowerCase() === walletAddress.toLowerCase()) {
 				transactionHistory.push({
 					type: 'record_created',
 					amount: parseInt(record.creditAmount),
@@ -923,10 +921,10 @@ app.get('/wallet-details', authenticateToken, async (req, res) => {
 				});
 			}
 		}
-		
+
 		// Sort by timestamp (newest first)
 		transactionHistory.sort((a, b) => b.timestamp - a.timestamp);
-		
+
 		res.json({
 			balance: parseInt(balance),
 			totalRecords: parseInt(userStats.totalRecords),
@@ -958,26 +956,26 @@ app.post('/evaluate', authenticateToken, async (req, res) => {
 		console.log(`Current USD to VND exchange rate: ${usdToVndRate}`);
 		const revenueInUSD = revenue / usdToVndRate;
 		const esgScore = await axios.post(
-		"http://ai:5000//predict/esg_overall",
-		{
-			Industry: "Technology",
-			Region: "Asia",
-			Year: 2024,
-			Revenue: revenueInUSD,
-			ProfitMargin: 12.5,
-			MarketCap: 20000000,
-			GrowthRate: 5.0,
-			CarbonEmissions: emissions,
-			WaterUsage: 300,
-			EnergyConsumption: 1500,
-		}
+			"http://ai:5000//predict/esg_overall",
+			{
+				Industry: "Technology",
+				Region: "Asia",
+				Year: 2024,
+				Revenue: revenueInUSD,
+				ProfitMargin: 12.5,
+				MarketCap: 20000000,
+				GrowthRate: 5.0,
+				CarbonEmissions: emissions,
+				WaterUsage: 300,
+				EnergyConsumption: 1500,
+			}
 		);
-		
+
 		console.log("ESG Score prediction:", esgScore.data);
 		return res.json({
 			result: esgScore.data.prediction,
 			error: null
-    	});
+		});
 	} catch (err) {
 		console.error("Error in /evaluate:", err);
 		return res.status(500).json({ error: err.message });
@@ -1125,48 +1123,34 @@ app.get('/records/:id', authenticateToken, async (req, res) => {
 
 app.post('/redeem-token', authenticateToken, async (req, res) => {
 	try {
-		const { amount, loanAmount, esgScore } = req.body;
+		const { walletAddress, amount, loanAmount, esgScore, txHash } = req.body;
 
-		if (!amount || amount <= 0) {
-			return res.status(400).json({ error: 'Valid amount is required' });
+		if (!amount || amount <= 0 || !txHash) {
+			return res.status(400).json({ error: 'Valid amount and txHash are required' });
 		}
 
-		// Check user's token balance
-		const userAddress = req.user.walletAddress || account; // Fallback to contract account
-		const balance = await contract.methods.balanceOf(userAddress).call();
-
-		if (parseInt(balance) < parseInt(amount)) {
-			return res.status(400).json({ error: 'Insufficient token balance' });
+		// Verify txHash on Sepolia
+		const receipt = await web3.eth.getTransactionReceipt(txHash);
+		if (!receipt) {
+			return res.status(400).json({ error: 'Transaction not found or still pending' });
+		}
+		if (!receipt.status) {
+			return res.status(400).json({ error: 'Transaction failed on-chain' });
 		}
 
-		// Redeem tokens (burn them)
-		const tx = contract.methods.redeemTokens(amount);
-		const gas = await tx.estimateGas({ from: account });
-		const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
-		const nonce = await web3.eth.getTransactionCount(account, 'pending');
+		// Calculate dynamic loan/discount
+		const discountResponse = await calculateDynamicLoanAmount(
+			amount,
+			loanAmount,
+			esgScore
+		);
 
-		const txData = {
-			from: account,
-			to: contractAddress,
-			data: tx.encodeABI(),
-			gas,
-			gasPrice,
-			nonce
-		};
-
-		const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
-		const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-
-		// Calculate dynamic loan amount and discount based on ESG score and token balance
-		const discountResponse = await calculateDynamicLoanAmount(amount, loanAmount, esgScore, balance);
-
-		// Emit real-time notification
 		io.emit('tokenRedeemed', {
 			user: req.user.username,
-			amount: amount,
+			amount,
 			discount: discountResponse.discount,
 			loanAmount: discountResponse.loanAmount,
-			txHash: receipt.transactionHash
+			txHash,
 		});
 
 		res.json({
@@ -1175,10 +1159,10 @@ app.post('/redeem-token', authenticateToken, async (req, res) => {
 			loanAmount: discountResponse.loanAmount,
 			interestRate: discountResponse.interestRate,
 			message: "Tokens redeemed successfully!",
-			txHash: receipt.transactionHash,
-			newBalance: parseInt(balance) - parseInt(amount)
+			txHash
 		});
 	} catch (err) {
+		console.error('Redeem error:', err);
 		res.status(500).json({ error: err.message });
 	}
 });
@@ -1217,7 +1201,7 @@ async function calculateDynamicLoanAmount(tokenAmount, requestedLoanAmount, esgS
 
 		// Calculate interest rate based on ESG score and token amount
 		let baseInterestRate = calculateInterestRate(esg);
-		
+
 		// Token discount (0% to 3% reduction)
 		const tokenDiscount = Math.min(3, Math.floor(tokens / 100) * 0.5);
 		const finalInterestRate = Math.max(4.5, baseInterestRate - tokenDiscount);
@@ -1531,7 +1515,7 @@ app.post('/approve-credit', authenticateToken, async (req, res) => {
 		const { recordId, finalLoanAmount, adminNotes } = req.body;
 
 		// Check if user is admin (in production, use proper role-based access)
-		const isAdmin = req.user && (req.user.email === 'admin@greencredit.ai' || req.user.username === 'admin');
+		const isAdmin = req.user.email === 'admin@greencredit.ai' || req.user.username === 'admin';
 
 		if (!isAdmin) {
 			return res.status(403).json({ error: 'Admin access required' });
@@ -1545,14 +1529,10 @@ app.post('/approve-credit', authenticateToken, async (req, res) => {
 		console.log("🚀 ~ recordExists:", recordExists)
 
 		// Approve credit on blockchain
-		const tx = contract.methods.approveCredit(recordId);
-		console.log("🚀 ~ tx:", tx)
+		const tx = await contract.methods.approveCredit(recordId);
 		const gas = await tx.estimateGas({ from: account });
-		console.log("🚀 ~ gas:", gas)
 		const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
-		console.log("🚀 ~ gasPrice:", gasPrice)
 		const nonce = await web3.eth.getTransactionCount(account, 'pending');
-		console.log("🚀 ~ nonce:", nonce)
 
 		const txData = {
 			from: account,
@@ -1622,10 +1602,10 @@ app.get('/pending-approvals', authenticateToken, async (req, res) => {
 app.get('/transaction-status/:txHash', authenticateToken, async (req, res) => {
 	try {
 		const { txHash } = req.params;
-		
+
 		// Get transaction receipt
 		const receipt = await web3.eth.getTransactionReceipt(txHash);
-		
+
 		if (!receipt) {
 			return res.json({
 				status: 'pending',
@@ -1633,14 +1613,14 @@ app.get('/transaction-status/:txHash', authenticateToken, async (req, res) => {
 				message: 'Transaction not found or still pending'
 			});
 		}
-		
+
 		// Get current block number
 		const currentBlock = await web3.eth.getBlockNumber();
 		const confirmations = currentBlock - receipt.blockNumber;
-		
+
 		// Consider confirmed after 1 confirmation for testnet
 		const isConfirmed = confirmations >= 1;
-		
+
 		res.json({
 			status: isConfirmed ? 'confirmed' : 'pending',
 			confirmations: confirmations,
@@ -1648,7 +1628,7 @@ app.get('/transaction-status/:txHash', authenticateToken, async (req, res) => {
 			gasUsed: receipt.gasUsed,
 			message: isConfirmed ? 'Transaction confirmed' : 'Transaction pending confirmation'
 		});
-		
+
 	} catch (err) {
 		console.error('Error checking transaction status:', err);
 		res.status(500).json({ error: err.message });
@@ -1739,59 +1719,42 @@ app.post('/mint-tokens', authenticateToken, async (req, res) => {
 	}
 });
 
-// Transfer tokens between users
+// Transfer tokens with on-chain verification
 app.post('/transfer-tokens', authenticateToken, async (req, res) => {
 	try {
-		const { recipient, amount } = req.body;
+		const { recipient, amount, txHash } = req.body;
 
-		// Validate input
-		if (!recipient || !amount || amount <= 0) {
-			return res.status(400).json({ error: 'Valid recipient address and amount are required' });
+		if (!recipient || !amount || amount <= 0 || !txHash) {
+			return res.status(400).json({ error: 'Recipient, amount and txHash are required' });
 		}
 
-		// Check user's token balance
-		const userAddress = account; // In real app, get from user's wallet
-		const balance = await contract.methods.balanceOf(userAddress).call();
+		// Check if transaction exists on blockchain
+		const receipt = await web3.eth.getTransactionReceipt(txHash);
 
-		if (parseInt(balance) < parseInt(amount)) {
-			return res.status(400).json({ error: 'Insufficient token balance' });
+		if (!receipt) {
+			return res.status(400).json({ error: 'Transaction not found or still pending' });
 		}
 
-		// Call smart contract to transfer tokens
-		const tx = contract.methods.transfer(recipient, amount);
-		const gas = await tx.estimateGas({ from: account });
-		const gasPrice = Math.floor(Number(await web3.eth.getGasPrice()) * 1.2);
-		const nonce = await web3.eth.getTransactionCount(account, 'pending');
+		if (!receipt.status) {
+			return res.status(400).json({ error: 'Transaction failed on-chain' });
+		}
 
-		const txData = {
-			from: account,
-			to: contractAddress,
-			data: tx.encodeABI(),
-			gas,
-			gasPrice,
-			nonce
-		};
-
-		const signedTx = await web3.eth.accounts.signTransaction(txData, privateKey);
-		const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
-
-		// Emit real-time notification
+		// Emit real-time notification after authenticate tx
 		io.emit('tokensTransferred', {
 			from: req.user.username,
 			to: recipient,
-			amount: amount,
-			txHash: receipt.transactionHash,
+			amount,
+			txHash,
 			timestamp: Date.now()
 		});
 
 		res.json({
 			success: true,
-			recipient: recipient,
-			amount: amount,
-			txHash: receipt.transactionHash,
-			message: 'Tokens transferred successfully'
+			recipient,
+			amount,
+			txHash,
+			message: 'Tokens transferred and verified successfully'
 		});
-
 	} catch (err) {
 		console.error('Error transferring tokens:', err);
 		res.status(500).json({ error: err.message });

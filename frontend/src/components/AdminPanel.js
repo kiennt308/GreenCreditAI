@@ -21,7 +21,7 @@ const AdminPanel = ({ user, token }) => {
     const showToast = ({ message, type }) => {
         setToast({ message, type, visible: true });
 
-        // Thiết lập để ẩn toast sau 3 giây
+        // Hide after 3 seconds
         setTimeout(() => {
             setToast((prev) => ({ ...prev, visible: false }));
         }, 3000);

@@ -16,6 +16,11 @@ import {
     Tooltip,
     Legend,
 } from 'chart.js';
+import CustomToast from './CustomToast';
+import '../css/CustomToast.css';
+import { BrowserProvider } from 'ethers';
+import Web3 from 'web3';
+import { contractABI, contractAddress } from "../config/contractConfig";
 
 ChartJS.register(
     CategoryScale,
@@ -29,6 +34,7 @@ ChartJS.register(
 
 const Dashboard = ({ user, token }) => {
     const { t } = useTranslation();
+    const [toast, setToast] = useState({ message: '', type: '', visible: false });
     const [records, setRecords] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -40,7 +46,7 @@ const Dashboard = ({ user, token }) => {
     const [transferForm, setTransferForm] = useState({ recipient: '', amount: '' });
     const [transferLoading, setTransferLoading] = useState(false);
     const [showTransferModal, setShowTransferModal] = useState(false);
-    
+
     // Create Record form states
     const [createRecordLoading, setCreateRecordLoading] = useState(false);
     const [createRecordSuccess, setCreateRecordSuccess] = useState('');
@@ -52,12 +58,43 @@ const Dashboard = ({ user, token }) => {
         loanAmount: ''
     });
 
+    // User's wallet info
+    const provider = new BrowserProvider(window.ethereum);
+    const [walletInfo, setWalletInfo] = useState({
+        walletAddress: '',
+        secretKey: ''
+    });
+    const [status, setStatus] = useState('');
+    const [isMetaMaskInstalled, setIsMetaMaskInstalled] = useState(false);
+
+    useEffect(() => {
+        if (typeof window.ethereum !== 'undefined') {
+            setIsMetaMaskInstalled(true);
+        }
+    }, []);
+
     useEffect(() => {
         fetchUserRecords();
-        fetchWalletDetails();
         // Check if user is admin
         setIsAdmin(user?.email === 'admin@greencredit.ai' || user?.username === 'admin');
     }, [user]);
+
+    useEffect(() => {
+        fetchWalletDetails();
+    }, [walletInfo.walletAddress]);
+
+    const showToast = ({ message, type }) => {
+        setToast({ message, type, visible: true });
+
+        // Hide after 3 seconds
+        setTimeout(() => {
+            setToast((prev) => ({ ...prev, visible: false }));
+        }, 3000);
+    };
+
+    const closeToast = () => {
+        setToast({ ...toast, visible: false });
+    };
 
     const fetchUserRecords = async () => {
         try {
@@ -75,14 +112,46 @@ const Dashboard = ({ user, token }) => {
         }
     };
 
+    const connectWallet = async () => {
+        if (!isMetaMaskInstalled) {
+            setStatus('Vui lòng cài đặt MetaMask!');
+            return;
+        }
+
+        try {
+            // Request user to connect Metamask wallet
+            const accounts = await provider.send("eth_requestAccounts", []);
+
+            // Get the first account
+            const currentAddress = accounts[0];
+            setWalletInfo({
+                walletAddress: currentAddress,
+                secretKey: ''
+            });
+            setStatus('Connect wallet successfully!');
+            showToast({ message: t('dashboard.successConnectWallet'), type: 'success' });
+
+        } catch (error) {
+            console.error("Error when connect to wallet", error);
+            showToast({ message: t('dashboard.errorConnectWallet'), type: 'error' });
+            if (error.code === 4001) {
+                setStatus('User rejected the connection request.');
+            } else {
+                setStatus('Error connecting to wallet.');
+            }
+        }
+    };
+
     const fetchWalletDetails = async () => {
         setWalletLoading(true);
         try {
-            const response = await axios.get('http://localhost:3001/wallet-details', {
+            const response = await axios.post('http://localhost:3001/wallet-details', walletInfo, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
+            console.log("🚀 ~ fetchWalletDetails ~ response:", response)
             setWalletDetails(response.data);
         } catch (err) {
             console.error('Error fetching wallet details:', err);
@@ -94,42 +163,65 @@ const Dashboard = ({ user, token }) => {
     const handleCreateRecord = async (e) => {
         e.preventDefault();
         setCreateRecordLoading(true);
-        setCreateRecordError('');
-        setCreateRecordSuccess('');
 
         try {
-            const response = await axios.post('http://localhost:3001/create-record', formData, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                }
-            });
+            const recordPayload = {
+                esgScore: parseInt(formData.esgScore, 10) || 0,
+                creditAmount: parseInt(formData.creditAmount, 10) || 0,
+                projectDescription: formData.projectDescription?.trim() || 'ESG Project',
+                loanAmount: parseInt(formData.loanAmount, 10) || parseInt(formData.creditAmount, 10) || 0,
+            };
 
-            if (response.data.txHash) {
-                // Add to pending transactions
-                setPendingTransactions(prev => new Set([...prev, response.data.txHash]));
-                
-                setCreateRecordSuccess(t('dashboard.recordCreatedSuccess') + ' - ' + t('dashboard.pendingConfirmation'));
-                
-                // Start polling for confirmation
-                pollTransactionStatus(response.data.txHash);
-            } else {
-                setCreateRecordSuccess(t('dashboard.recordCreatedSuccess'));
+            // Validate input
+            if (recordPayload.esgScore <= 0 || recordPayload.creditAmount <= 0) {
+                showToast({ message: t('dashboard.invalidRecordFields'), type: 'error' });
+                return;
             }
-            
-            setFormData({
-                esgScore: '',
-                creditAmount: '',
-                projectDescription: '',
-                loanAmount: ''
-            });
-            
-            // Refresh records after creating new one
+
+            const res = await axios.post(
+                `http://localhost:3001/create-record`,
+                recordPayload,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            const data = res?.data ?? {};
+
+            // Normalize response
+            const result = {
+                success: data.success ?? false,
+                recordId: data.recordId ?? 'unknown',
+                txHash: data.txHash ?? null,
+                status: data.status ?? 'pending',
+                message: data.message ?? t('dashboard.recordCreatedSuccess'),
+                esgScore: recordPayload.esgScore,
+                creditAmount: recordPayload.creditAmount,
+                projectDescription: recordPayload.projectDescription,
+                loanAmount: recordPayload.loanAmount,
+            };
+
+            // Add to pending transactions if available
+            if (result.txHash) {
+                setPendingTransactions((prev) => new Set([...prev, result.txHash]));
+                // Poll for confirmation
+                pollTransactionStatus(result.txHash);
+            }
+
+            // Update UI
+            setCreateRecordSuccess(`${result.message} - ${t('dashboard.pendingConfirmation')}`);
+            setFormData({ esgScore: '', creditAmount: '', projectDescription: '', loanAmount: '' });
             await fetchUserRecords();
-            
+            showToast({ message: result.message, type: 'success' });
+
         } catch (err) {
-            setCreateRecordError(err.response?.data?.error || err.message || t('dashboard.recordCreateError'));
             console.error('Error creating record:', err);
+            const msg = err?.response?.data?.error ?? err.message ?? t('dashboard.recordCreateError');
+            setCreateRecordError(msg);
+            showToast({ message: msg, type: 'error' });
         } finally {
             setCreateRecordLoading(false);
         }
@@ -138,13 +230,13 @@ const Dashboard = ({ user, token }) => {
     const pollTransactionStatus = async (txHash) => {
         const maxAttempts = 30; // Poll for up to 5 minutes (10s intervals)
         let attempts = 0;
-        
+
         const poll = async () => {
             try {
                 const response = await axios.get(`http://localhost:3001/transaction-status/${txHash}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
+
                 if (response.data.status === 'confirmed') {
                     // Remove from pending transactions
                     setPendingTransactions(prev => {
@@ -152,15 +244,15 @@ const Dashboard = ({ user, token }) => {
                         newSet.delete(txHash);
                         return newSet;
                     });
-                    
+
                     // Refresh records and wallet details
                     await fetchUserRecords();
                     await fetchWalletDetails();
-                    
+
                     console.log('Transaction confirmed:', txHash);
                     return;
                 }
-                
+
                 attempts++;
                 if (attempts < maxAttempts) {
                     setTimeout(poll, 10000); // Poll every 10 seconds
@@ -181,7 +273,7 @@ const Dashboard = ({ user, token }) => {
                 }
             }
         };
-        
+
         // Start polling after 5 seconds
         setTimeout(poll, 5000);
     };
@@ -191,22 +283,50 @@ const Dashboard = ({ user, token }) => {
         setTransferLoading(true);
 
         try {
-            const response = await axios.post('http://localhost:3001/transfer-tokens', {
-                recipient: transferForm.recipient,
-                amount: transferForm.amount
-            }, {
-                headers: { 'Authorization': `Bearer ${token}` }
+            if (!window.ethereum) {
+                throw new Error("No crypto wallet found. Please install MetaMask.");
+            }
+
+            // Switch to Sepolia (chainId: 11155111 → 0xaa36a7)
+            await window.ethereum.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: "0xaa36a7" }],
             });
 
-            setTransferForm({ recipient: '', amount: '' });
+            const web3 = new Web3(window.ethereum);
+            const accounts = await web3.eth.requestAccounts();
+            const userAddress = accounts[0];
+
+            const contract = new web3.eth.Contract(contractABI, contractAddress);
+
+            // Transaction use gas by SepoliaETH
+            const tx = await contract.methods
+                .transfer(transferForm.recipient, transferForm.amount)
+                .send({ from: userAddress });
+
+            console.log("Transaction receipt:", tx);
+
+            // Send txHash back to backend
+            await axios.post(
+                "http://localhost:3001/transfer-tokens",
+                {
+                    recipient: transferForm.recipient,
+                    amount: transferForm.amount,
+                    txHash: tx.transactionHash,
+                },
+                {
+                    headers: { Authorization: `Bearer ${token}` },
+                }
+            );
+
+            setTransferForm({ recipient: "", amount: "" });
             setShowTransferModal(false);
-            await fetchWalletDetails(); // Refresh wallet details
-            
-            // Show success message
-            setCreateRecordSuccess('Tokens transferred successfully!');
-            
+            await fetchWalletDetails();
+
+            setCreateRecordSuccess("Tokens transferred successfully on Sepolia!");
         } catch (err) {
-            setCreateRecordError(err.response?.data?.error || 'Transfer failed');
+            console.error("Error transferring tokens:", err);
+            setCreateRecordError(err.message || "Transfer failed");
         } finally {
             setTransferLoading(false);
         }
@@ -280,6 +400,9 @@ const Dashboard = ({ user, token }) => {
 
     return (
         <div className="container mt-5">
+            {toast.visible && (
+                <CustomToast message={toast.message} type={toast.type} onClose={closeToast} />
+            )}
             <div className="row">
                 <div className="col-12">
                     <h2>{t('dashboard.welcomeMessage', { username: user?.username || 'User' })}</h2>
@@ -292,7 +415,7 @@ const Dashboard = ({ user, token }) => {
                 <div className="col-12">
                     <ul className="nav nav-tabs">
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'overview' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('overview')}
                             >
@@ -300,7 +423,7 @@ const Dashboard = ({ user, token }) => {
                             </button>
                         </li>
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'wallet' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('wallet')}
                             >
@@ -308,7 +431,7 @@ const Dashboard = ({ user, token }) => {
                             </button>
                         </li>
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'tokens' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('tokens')}
                             >
@@ -316,7 +439,7 @@ const Dashboard = ({ user, token }) => {
                             </button>
                         </li>
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'progress' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('progress')}
                             >
@@ -324,7 +447,7 @@ const Dashboard = ({ user, token }) => {
                             </button>
                         </li>
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'analytics' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('analytics')}
                             >
@@ -332,7 +455,7 @@ const Dashboard = ({ user, token }) => {
                             </button>
                         </li>
                         <li className="nav-item">
-                            <button 
+                            <button
                                 className={`nav-link ${activeTab === 'create' ? 'active' : ''}`}
                                 onClick={() => setActiveTab('create')}
                             >
@@ -341,7 +464,7 @@ const Dashboard = ({ user, token }) => {
                         </li>
                         {isAdmin && (
                             <li className="nav-item">
-                                <button 
+                                <button
                                     className={`nav-link ${activeTab === 'admin' ? 'active' : ''}`}
                                     onClick={() => setActiveTab('admin')}
                                 >
@@ -363,68 +486,70 @@ const Dashboard = ({ user, token }) => {
             {activeTab === 'overview' && (
                 <>
                     <div className="row mt-4">
-                <div className="col-12">
-                    <div className="card">
-                        <div className="card-header">
-                            <h5>{t('dashboard.esgScoreTrends')}</h5>
-                        </div>
-                        <div className="card-body">
-                            <Line data={chartData} options={chartOptions} />
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="row mt-4">
-                <div className="col-12">
-                    <div className="card">
-                        <div className="card-header">
-                            <h5>{t('dashboard.yourRecords')}</h5>
-                        </div>
-                        <div className="card-body">
-                            {records.length === 0 ? (
-                                <p className="text-muted">{t('dashboard.noRecords')}</p>
-                            ) : (
-                                <div className="table-responsive">
-                                    <table className="table table-striped">
-                                        <thead>
-                                            <tr>
-                                                <th>{t('dashboard.recordId')}</th>
-                                                <th>{t('dashboard.esgScore')}</th>
-                                                <th>{t('dashboard.creditAmount')}</th>
-                                                <th>{t('dashboard.status')}</th>
-                                                <th>{t('dashboard.userAddress')}</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {records.map((record, index) => (
-                                                <tr key={index}>
-                                                    <td>{index + 1}</td>
-                                                    <td>{record.esgScore}</td>
-                                                    <td>{record.creditAmount}</td>
-                                                    <td>
-                                                        {pendingTransactions.has(record.txHash) ? (
-                                                            <span className="badge bg-info d-flex align-items-center">
-                                                                <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                                                {t('dashboard.confirming')}
-                                                            </span>
-                                                        ) : (
-                                                            <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
-                                                                {record.approved ? t('dashboard.approved') : t('dashboard.pending')}
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td>{record.user}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                        <div className="col-12">
+                            <div className="card">
+                                <div className="card-header">
+                                    <h5>{t('dashboard.esgScoreTrends')}</h5>
                                 </div>
-                            )}
+                                <div className="card-body">
+                                    <Line data={chartData} options={chartOptions} />
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-            </div>
+
+                    {isAdmin && (
+                        <div className="row mt-4">
+                            <div className="col-12">
+                                <div className="card">
+                                    <div className="card-header">
+                                        <h5>{t('dashboard.yourRecords')}</h5>
+                                    </div>
+                                    <div className="card-body">
+                                        {records.length === 0 ? (
+                                            <p className="text-muted">{t('dashboard.noRecords')}</p>
+                                        ) : (
+                                            <div className="table-responsive">
+                                                <table className="table table-striped">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>{t('dashboard.recordId')}</th>
+                                                            <th>{t('dashboard.esgScore')}</th>
+                                                            <th>{t('dashboard.creditAmount')}</th>
+                                                            <th>{t('dashboard.status')}</th>
+                                                            <th>{t('dashboard.userAddress')}</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {records.map((record, index) => (
+                                                            <tr key={index}>
+                                                                <td>{index + 1}</td>
+                                                                <td>{record.esgScore}</td>
+                                                                <td>{record.creditAmount}</td>
+                                                                <td>
+                                                                    {pendingTransactions.has(record.txHash) ? (
+                                                                        <span className="badge bg-info d-flex align-items-center">
+                                                                            <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                                                            {t('dashboard.confirming')}
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className={`badge ${record.approved ? 'bg-success' : 'bg-warning'}`}>
+                                                                            {record.approved ? t('dashboard.approved') : t('dashboard.pending')}
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td>{record.user}</td>
+                                                            </tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </>
             )}
 
@@ -462,7 +587,7 @@ const Dashboard = ({ user, token }) => {
                                     <>
                                         {/* Wallet Balance Cards */}
                                         <div className="row mb-4">
-                                            <div className="col-md-3">
+                                            <div className="col-md-4">
                                                 <div className="card bg-primary text-white">
                                                     <div className="card-body text-center">
                                                         <h5 className="card-title">{t('dashboard.currentBalance')}</h5>
@@ -470,7 +595,7 @@ const Dashboard = ({ user, token }) => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="col-md-3">
+                                            <div className="col-md-4">
                                                 <div className="card bg-success text-white">
                                                     <div className="card-body text-center">
                                                         <h5 className="card-title">{t('dashboard.totalRecords')}</h5>
@@ -478,15 +603,7 @@ const Dashboard = ({ user, token }) => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <div className="col-md-3">
-                                                <div className="card bg-info text-white">
-                                                    <div className="card-body text-center">
-                                                        <h5 className="card-title">{t('dashboard.totalTokens')}</h5>
-                                                        <h3>{(walletDetails.totalTokens || 0).toLocaleString()} GCT</h3>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="col-md-3">
+                                            <div className="col-md-4">
                                                 <div className="card bg-warning text-white">
                                                     <div className="card-body text-center">
                                                         <h5 className="card-title">{t('dashboard.redeemedAmount')}</h5>
@@ -552,11 +669,24 @@ const Dashboard = ({ user, token }) => {
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="text-center py-4">
-                                        <div className="spinner-border" role="status">
-                                            <span className="visually-hidden">{t('common.loading')}</span>
+                                    <>
+                                        <div className='mb-3'>
+                                            {t('dashboard.errorConnectWallet')}
                                         </div>
-                                    </div>
+                                        <div>
+                                            {walletInfo?.walletAddress ? (
+                                                <>
+                                                    <p><b>Connected!</b></p>
+                                                    <p>Wallet Address: {walletInfo?.walletAddress.slice(0, 6)}...{walletInfo?.walletAddress.slice(-4)}</p>
+                                                </>
+                                            ) : (
+                                                <button onClick={connectWallet} disabled={!isMetaMaskInstalled}>
+                                                    {isMetaMaskInstalled ? 'Connect with MetaMask' : 'MetaMask not installed'}
+                                                </button>
+                                            )}
+                                            <p>{status}</p>
+                                        </div>
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -565,7 +695,7 @@ const Dashboard = ({ user, token }) => {
             )}
 
             {activeTab === 'tokens' && (
-                <TokenRedemption user={user} token={token} />
+                <TokenRedemption user={user} token={token} walletInfo={walletInfo} provider={provider} />
             )}
 
             {activeTab === 'progress' && (
@@ -590,7 +720,7 @@ const Dashboard = ({ user, token }) => {
                                         {createRecordSuccess}
                                     </div>
                                 )}
-                                
+
                                 {createRecordError && (
                                     <div className="alert alert-danger" role="alert">
                                         {createRecordError}
@@ -751,15 +881,15 @@ const Dashboard = ({ user, token }) => {
                                 </form>
                             </div>
                             <div className="modal-footer">
-                                <button 
-                                    type="button" 
-                                    className="btn btn-secondary" 
+                                <button
+                                    type="button"
+                                    className="btn btn-secondary"
                                     onClick={() => setShowTransferModal(false)}
                                 >
                                     Cancel
                                 </button>
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     className="btn btn-primary"
                                     onClick={handleTransferTokens}
                                     disabled={transferLoading || !transferForm.recipient || !transferForm.amount}

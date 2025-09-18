@@ -62,6 +62,7 @@ const AppContent = () => {
       <div className="App">
         <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
           <div className="container">
+            <img src="./GCT_logo.png" alt="Logo" style={{ width: '60px', height: '60px', marginRight: '10px' }} />
             <a className="navbar-brand" href="/">GreenCredit AI</a>
             <div className="navbar-nav ms-auto d-flex align-items-center">
               <div className="me-3">

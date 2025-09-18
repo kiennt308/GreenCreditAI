@@ -5,7 +5,6 @@ const userSchema = new mongoose.Schema({
     address: {
         type: String,
         required: false,
-        unique: true, // Đảm bảo địa chỉ người dùng là duy nhất
         match: /^0x[a-fA-F0-9]{40}$/ // Kiểm tra định dạng địa chỉ Ethereum
     },
     email: {

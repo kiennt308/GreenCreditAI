@@ -4,8 +4,10 @@ import axios from 'axios';
 import { useTranslation } from 'react-i18next';
 import CustomToast from './CustomToast';
 import '../css/CustomToast.css';
+import { Web3 } from 'web3';
+import { contractABI, contractAddress } from "../config/contractConfig";
 
-const TokenRedemption = ({ user, token }) => {
+const TokenRedemption = ({ user, token, walletInfo, provider }) => {
   const { t } = useTranslation();
 
   // Token redemption states
@@ -15,7 +17,7 @@ const TokenRedemption = ({ user, token }) => {
   const [showModal, setShowModal] = useState(false);
   const [redemptionResult, setRedemptionResult] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '', visible: false });
-  
+
   // Dynamic loan amount states
   const [loanAmount, setLoanAmount] = useState('');
   const [currentEsgScore, setCurrentEsgScore] = useState(null);
@@ -53,8 +55,9 @@ const TokenRedemption = ({ user, token }) => {
 
   const fetchTokenBalance = async () => {
     try {
-      const res = await axios.get(`${API_BASE}/token-balance`, {
+      const res = await axios.post(`${API_BASE}/token-balance`, { walletAddress: walletInfo.walletAddress }, {
         headers: { Authorization: `Bearer ${token}` },
+        'Content-Type': 'application/json'
       });
       // try common property names, fallback to 0
       const total = Number(res.data?.totalBalance ?? res.data?.totalBalance ?? 0);
@@ -69,7 +72,7 @@ const TokenRedemption = ({ user, token }) => {
       const res = await axios.get(`${API_BASE}/user-records`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (res.data && res.data.length > 0) {
         // Get the latest ESG score from user records
         const latestRecord = res.data[res.data.length - 1];
@@ -138,13 +141,13 @@ const TokenRedemption = ({ user, token }) => {
       setShowEsgResult(true);
 
       // Show success message
-      showToast({ message: t('tokens.esgEvaluationSuccess', { score: score.toFixed(2) }), type: 'success'});
+      showToast({ message: t('tokens.esgEvaluationSuccess', { score: score.toFixed(2) }), type: 'success' });
 
     } catch (err) {
       console.error('ESG evaluation error:', err);
       const errorMsg = err?.response?.data?.error || err?.message || t('tokens.esgEvaluationError');
       setEsgError(errorMsg);
-      showToast({ message: errorMsg, type: 'error'});
+      showToast({ message: errorMsg, type: 'error' });
     } finally {
       setEsgLoading(false);
     }
@@ -170,25 +173,73 @@ const TokenRedemption = ({ user, token }) => {
     setLoading(true);
 
     try {
+      if (!window.ethereum) {
+        throw new Error("No crypto wallet found. Please install MetaMask.");
+      }
+
       const redeemAmount = parseInt(amount, 10) || 0;
       const requestedLoanAmount = parseInt(loanAmount, 10) || 500000000; // Default 500M VND
 
       if (redeemAmount < 1) {
-        showToast({ message: t('tokens.invalidAmount'), type: 'error'});
+        showToast({ message: t("tokens.invalidAmount"), type: "error" });
         return;
       }
       if (redeemAmount > (balance || 0)) {
-        showToast({ message: t('tokens.insufficientTokens'), type: 'error'});
+        showToast({ message: t("tokens.insufficientTokens"), type: "error" });
         return;
       }
 
-      // Call backend with dynamic loan parameters
+      // Ensure Metamask is connected to Sepolia
+      try {
+        await window.ethereum.request({
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0xaa36a7" }], // Sepolia chainId
+        });
+      } catch (switchError) {
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: "wallet_addEthereumChain",
+            params: [
+              {
+                chainId: "0xaa36a7",
+                chainName: "Sepolia Test Network",
+                nativeCurrency: {
+                  name: "SepoliaETH",
+                  symbol: "ETH",
+                  decimals: 18,
+                },
+                rpcUrls: ["https://sepolia.infura.io/v3/YOUR_INFURA_KEY"],
+                blockExplorerUrls: ["https://sepolia.etherscan.io/"],
+              },
+            ],
+          });
+        } else {
+          throw switchError;
+        }
+      }
+
+      // Setup Web3 and contract
+      const web3 = new Web3(window.ethereum);
+      const accounts = await web3.eth.requestAccounts();
+      const userAddress = accounts[0];
+      const contract = new web3.eth.Contract(contractABI, contractAddress);
+
+      // Call smart contract: redeemTokens(amount)
+      const tx = await contract.methods
+        .redeemTokens(redeemAmount)
+        .send({ from: userAddress });
+
+      console.log("Redeem transaction receipt:", tx);
+
+      // Send txHash and parameters to backend for logging and dynamic loan calculation
       const res = await axios.post(
         `${API_BASE}/redeem-token`,
-        { 
+        {
+          walletAddress: userAddress,
           amount: String(redeemAmount),
           loanAmount: String(requestedLoanAmount),
-          esgScore: String(currentEsgScore || 70)
+          esgScore: String(currentEsgScore || 70),
+          txHash: tx.transactionHash
         },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -197,31 +248,38 @@ const TokenRedemption = ({ user, token }) => {
 
       const newBalance = Number(data.newBalance ?? Math.max(0, (balance || 0) - redeemAmount));
 
-      // Normalize response into our result object (safe defaults)
+      // Normalize response
       const result = {
-        discount: data.discount ?? getTierForAmount(redeemAmount)?.discount ?? 'N/A',
-        loanAmount: data.loanAmount ?? '500,000,000 VND',
-        interestRate: data.interestRate ?? '8.5%',
-        newBalance: newBalance,
+        discount: data.discount ?? getTierForAmount(redeemAmount)?.discount ?? "N/A",
+        loanAmount: data.loanAmount ?? "500,000,000 VND",
+        interestRate: data.interestRate ?? "8.5%",
+        newBalance,
         txHash: data.txHash ?? null,
-        redeemAmount: redeemAmount,
+        redeemAmount,
         message: data.message ?? null,
-        esgMultiplier: data.esgMultiplier ?? '1.00',
-        balanceMultiplier: data.balanceMultiplier ?? '1.00',
-        tokenMultiplier: data.tokenMultiplier ?? '1.00'
+        esgMultiplier: data.esgMultiplier ?? "1.00",
+        balanceMultiplier: data.balanceMultiplier ?? "1.00",
+        tokenMultiplier: data.tokenMultiplier ?? "1.00",
       };
 
       setRedemptionResult(result);
       setBalance(newBalance);
       setShowModal(true);
-      setAmount('');
-      setLoanAmount('');
-      await fetchTokenBalance(); // refresh balance after redeem
-      showToast({ message: data.message ?? t('tokens.redemptionSuccess'), type: 'success'});
+      setAmount("");
+      setLoanAmount("");
+      await fetchTokenBalance();
+      showToast({
+        message: data.message ?? t("tokens.redemptionSuccess"),
+        type: "success",
+      });
     } catch (err) {
-      console.error('Redeem error:', err);
-      const msg = err?.response?.data?.error ?? err?.response?.data?.message ?? err.message ?? t('tokens.redemptionError');
-      showToast({ message: msg, type: 'error'});
+      console.error("Redeem error:", err);
+      const msg =
+        err?.response?.data?.error ??
+        err?.response?.data?.message ??
+        err.message ??
+        t("tokens.redemptionError");
+      showToast({ message: msg, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -230,7 +288,7 @@ const TokenRedemption = ({ user, token }) => {
   const showToast = ({ message, type }) => {
     setToast({ message, type, visible: true });
 
-    // Thiết lập để ẩn toast sau 3 giây
+    // Hide after 3 seconds
     setTimeout(() => {
       setToast((prev) => ({ ...prev, visible: false }));
     }, 3000);
@@ -268,7 +326,7 @@ const TokenRedemption = ({ user, token }) => {
 
     const tokenDiscount = Math.min(3, Math.floor(tokens / 100) * 0.5);
     const finalInterestRate = Math.max(4.5, baseInterestRate - tokenDiscount);
-    
+
     return finalInterestRate.toFixed(1);
   };
 
@@ -396,19 +454,11 @@ const TokenRedemption = ({ user, token }) => {
             </div>
             <div className="card-body">
               <div className="row mb-4">
-                <div className="col-md-6">
+                <div className="col-md-12">
                   <div className="card bg-light">
                     <div className="card-body text-center">
                       <h5 className="card-title">{t('tokens.currentBalance')}</h5>
-                      <h3 className="text-primary">{(Number(balance) || 0).toLocaleString()} GCT</h3>
-                    </div>
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <div className="card bg-light">
-                    <div className="card-body text-center">
-                      <h5 className="card-title">{t('tokens.availableForBank')}</h5>
-                      <h3 className="text-success">500M VND Loan</h3>
+                      <h3 className="text-primary">{balance ? (Number(balance)).toLocaleString() + " GCT" : t('dashboard.errorConnectWallet')}</h3>
                     </div>
                   </div>
                 </div>
@@ -544,7 +594,7 @@ const TokenRedemption = ({ user, token }) => {
                   <p><strong>{t('tokens.loanAmount')}:</strong> {redemptionResult.loanAmount ?? '500,000,000 VND'}</p>
                   <p><strong>{t('tokens.interestRate')}:</strong> {redemptionResult.interestRate ?? '8.5%'}</p>
                   <p><strong>{t('tokens.validUntil')}:</strong> {new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString()}</p>
-                  
+
                   {/* Dynamic calculation details */}
                   {redemptionResult.esgMultiplier && (
                     <div className="mt-3">
